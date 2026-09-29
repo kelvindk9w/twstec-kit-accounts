@@ -1,0 +1,78 @@
+{
+    "$schema": "https://getcomposer.org/schema.json",
+    "name": "twstec/kit-accounts",
+    "description": "Contas e API do TWS Laravel Starter Kit, sem telas: projetos, chaves de API com par pública/secreta, hash com pepper, escopos, vínculo chave-projeto, rotação com período de graça, expiração por inatividade, autenticação e limites da API e a API v1.",
+    "type": "library",
+    "license": "MIT",
+    "homepage": "https://github.com/kelvindk9w/tws-laravel-starter-kit",
+    "authors": [
+        {
+            "name": "TWS",
+            "homepage": "https://github.com/kelvindk9w"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/kelvindk9w/tws-laravel-starter-kit/issues",
+        "source": "https://github.com/kelvindk9w/tws-laravel-starter-kit/tree/desenvolvimento/packages/accounts",
+        "docs": "https://github.com/kelvindk9w/tws-laravel-starter-kit/tree/desenvolvimento/docs"
+    },
+    "keywords": [
+        "laravel",
+        "api-keys",
+        "tenancy",
+        "api",
+        "starter-kit"
+    ],
+    "require": {
+        "php": "^8.4",
+        "laravel/framework": "^13.17",
+        "twstec/kit-auth": "^2.0",
+        "twstec/kit-foundation": "^2.0"
+    },
+    "require-dev": {
+        "laravel/pint": "^1.27",
+        "orchestra/testbench": "^11.0",
+        "pestphp/pest": "^4.7"
+    },
+    "autoload": {
+        "psr-4": {
+            "Twstec\\Kit\\Accounts\\": "src/"
+        },
+        "files": [
+            "src/Compat/legacy-aliases.php",
+            "src/Tenancy/helpers.php",
+            "src/ApiKeys/Mail/previews.php",
+            "src/Account/Mail/previews.php"
+        ]
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Twstec\\Kit\\Accounts\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Twstec\\Kit\\Accounts\\AccountsServiceProvider"
+            ]
+        },
+        "branch-alias": {
+            "dev-main": "2.x-dev"
+        }
+    },
+    "scripts": {
+        "test": "pest",
+        "lint": "pint --test"
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        },
+        "platform": {
+            "php": "8.4.24"
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}
