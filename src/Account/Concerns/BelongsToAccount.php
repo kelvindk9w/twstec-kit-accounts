@@ -29,8 +29,10 @@ use Twstec\Kit\Auth\Support\UserModel;
  *   conta atual é sempre gravada; uma trava de arquitetura lista os models
  *   que declaram a exceção.
  *
- * Todo model com `account_id` usa esta trait — uma trava de arquitetura no
- * starter confere.
+ * Todo model com `account_id` usa esta trait — a trava de arquitetura
+ * `tests/Feature/Architecture/AccountModelsTest.php` dos dois starters (e do
+ * projeto criado a partir deles) confere, com as colunas lidas do banco de
+ * teste e uma lista explícita de exceções.
  */
 trait BelongsToAccount
 {
