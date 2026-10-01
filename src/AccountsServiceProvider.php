@@ -41,6 +41,7 @@ use Twstec\Kit\Auth\Contracts\AuthUser;
 use Twstec\Kit\Foundation\Http\Exceptions\ApiErrorRenderer;
 use Twstec\Kit\Foundation\Localization\PackageTranslations;
 use Twstec\Kit\Foundation\Security\Contracts\RateLimitSubjectResolver;
+use Twstec\Kit\Foundation\Tracing\Http\OutboundHttpTrail;
 use WeakMap;
 
 /**
@@ -214,6 +215,14 @@ final class AccountsServiceProvider extends ServiceProvider
 
         // Jobs levam a conta de quem enfileirou e a restauram no worker.
         AccountJobContext::register($events);
+
+        // A trilha das chamadas HTTP de saída (twstec/kit-foundation) grava
+        // em nome de qual CONTA a chamada foi feita.
+        OutboundHttpTrail::resolveTenantUsing(static function (): ?string {
+            $uuid = app(CurrentAccount::class)->account()?->uuid;
+
+            return $uuid !== null ? (string) $uuid : null;
+        });
 
         // Fim de TODA requisição HTTP (web, API, /admin): o modo sistema da
         // requisição e o cache da sessão não sobram para a próxima.
