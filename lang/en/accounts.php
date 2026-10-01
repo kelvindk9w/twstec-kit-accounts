@@ -35,6 +35,7 @@ return [
 
     'deletion' => [
         'owner_has_members' => '{1} This person owns an account that has other members (:accounts). Transfer ownership before deleting them.|[2,*] This person owns accounts that have other members (:accounts). Transfer ownership before deleting them.',
+        'referenced' => 'This cannot be deleted right now: there are records that still depend on this account and must be kept. Nothing was deleted.',
     ],
 
     'authorization' => [

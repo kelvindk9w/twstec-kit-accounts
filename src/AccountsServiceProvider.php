@@ -34,6 +34,7 @@ use Twstec\Kit\Accounts\ApiKeys\Console\ProcessApiKeyInactivity;
 use Twstec\Kit\Accounts\ApiKeys\Http\Middleware\EnsureAccountWideApiKey;
 use Twstec\Kit\Accounts\ApiKeys\Http\Middleware\EnsureApiKeyScope;
 use Twstec\Kit\Accounts\ApiKeys\Support\PepperWarnings;
+use Twstec\Kit\Accounts\Deletion\DeletionImpediments;
 use Twstec\Kit\Accounts\Tenancy\Middleware\ResolveTenant;
 use Twstec\Kit\Accounts\Tenancy\Support\TenantRateLimitSubject;
 use Twstec\Kit\Accounts\Tenancy\TenantContext;
@@ -149,6 +150,10 @@ final class AccountsServiceProvider extends ServiceProvider
         $this->app->singleton(AccountJobContext::class);
         $this->app->singleton(PersonLifecycle::class);
         $this->app->singleton(AccountService::class);
+
+        // Impedimentos de exclusão (ponto de extensão do aplicativo e dos
+        // outros pacotes): um registro por processo.
+        $this->app->singleton(DeletionImpediments::class);
 
         // Contexto do tenant da requisição, preenchido pelo ResolveTenant.
         // PHP-FPM garante o ciclo por requisição; se Octane entrar um dia,

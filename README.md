@@ -112,6 +112,18 @@ Nenhuma proteção depende de o aplicativo lembrar de chamar algo:
   sistema da requisição; a conta pessoal de cada pessoa criada; a recusa de
   excluir pessoa dona de conta com outros membros; os gatilhos do PostgreSQL;
   as habilidades por papel no Gate (`accounts.*`).
+- **Impedimentos de exclusão** (`Deletion\DeletionImpediments`): o ponto de
+  extensão para o aplicativo (e os outros pacotes) declarar se e por que uma
+  pessoa ou uma conta não pode ser excluída agora — verificadores
+  (`Deletion\Contracts\DeletionCheck`) em `accounts.deletion.checks` ou
+  registrados em código, perguntados ANTES de qualquer linha sair. Havendo
+  impedimento, a exclusão é recusada inteira: `DeletionImpededException` com a
+  mensagem traduzida, a recusa na trilha (mesmo com a transação de quem chamou
+  desfeita) e, na página da conta, a recusa antes de pedir o código. Registro
+  do aplicativo com chave estrangeira `RESTRICT` que ninguém declarou vira a
+  mesma recusa limpa, com a transação desfeita — nunca o erro bruto do banco
+  (`DeletionImpediments::guardIntegrity`). Ver
+  [docs/tenancy.md](https://github.com/kelvindk9w/tws-laravel-starter-kit/blob/desenvolvimento/docs/tenancy.md#impedimentos-de-exclusão).
 
 - **Autenticação por chave:** o alias `resolve.tenant`, que entra SEMPRE no
   grupo das rotas v1 (inclusive quando o aplicativo as registra ele mesmo).

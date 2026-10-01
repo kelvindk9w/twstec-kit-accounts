@@ -35,6 +35,7 @@ return [
 
     'deletion' => [
         'owner_has_members' => '{1} Esta persona es propietaria de una cuenta con otros miembros (:accounts). Transfiera la propiedad antes de eliminarla.|[2,*] Esta persona es propietaria de cuentas con otros miembros (:accounts). Transfiera la propiedad antes de eliminarla.',
+        'referenced' => 'No es posible eliminar ahora: hay registros que todavía dependen de esta cuenta y deben conservarse. No se eliminó nada.',
     ],
 
     'authorization' => [

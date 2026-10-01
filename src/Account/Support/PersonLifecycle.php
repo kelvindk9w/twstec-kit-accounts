@@ -5,12 +5,16 @@ declare(strict_types=1);
 namespace Twstec\Kit\Accounts\Account\Support;
 
 use Illuminate\Contracts\Events\Dispatcher;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 use Twstec\Kit\Accounts\Account\Events\PersonDeleted;
 use Twstec\Kit\Accounts\Account\Events\PersonDeleting;
 use Twstec\Kit\Accounts\Account\Models\Account;
 use Twstec\Kit\Accounts\Account\Services\AccountService;
+use Twstec\Kit\Accounts\Deletion\Exceptions\DeletionImpededException;
 use Twstec\Kit\Auth\Contracts\AuthUser;
 use Twstec\Kit\Auth\Support\UserModel;
+use Twstec\Kit\Foundation\Audit\AuditTrail;
 use WeakMap;
 
 /**
@@ -22,6 +26,11 @@ use WeakMap;
  * - Excluída:
  *   - recusada (exceção, nada muda) se ela é DONA de conta com outros
  *     membros — a propriedade precisa ser transferida antes;
+ *   - recusada (Deletion\Exceptions\DeletionImpededException, nada muda) se
+ *     um verificador declarado disser que ela, ou uma conta que sairia junto,
+ *     não pode ser excluída agora (Deletion\DeletionImpediments) — com a
+ *     recusa e o motivo na trilha de auditoria (`user.deleted`, `denied`),
+ *     mesmo que quem chamou desfaça a transação em volta;
  *   - senão, as contas de que ela era dona (a pessoal e as que só ela usava)
  *     saem com os dados — o mesmo efeito da 1.x; nas contas em que era admin
  *     ou member ela só deixa de ser membro, e as chaves que criou continuam
@@ -87,7 +96,13 @@ final class PersonLifecycle
 
     public function deleting(AuthUser $user): void
     {
-        $this->accounts->ensurePersonCanBeDeleted($user);
+        try {
+            $this->accounts->ensurePersonCanBeDeleted($user);
+        } catch (DeletionImpededException $exception) {
+            $this->recordRefusal($user, $exception->getMessage());
+
+            throw $exception;
+        }
 
         $this->owned[$user] = $this->accounts->ownedAccountIds($user);
         $this->orphans[$user] = $this->accounts->orphanedKeysOnPersonExit($user);
@@ -113,6 +128,28 @@ final class PersonLifecycle
         // já não é membro dela aqui — não há aviso duplicado.
         foreach ($orfas as $orfa) {
             $this->notices->notify($orfa['account'], $user, $orfa['keys'], removed: true, deleted: true);
+        }
+    }
+
+    /**
+     * A recusa vai para a trilha AGORA e — se quem chamou estava numa
+     * transação e a desfizer por causa da exceção — de novo depois do
+     * desfazer: a linha gravada dentro dela iria embora junto. Fora de
+     * transação, uma linha só; numa transação que não é desfeita, também.
+     */
+    private function recordRefusal(AuthUser $user, string $reason): void
+    {
+        $trail = app(AuditTrail::class);
+        $record = static fn () => $trail->denied(
+            AuditTrail::subjectType(UserModel::name()).'.deleted',
+            $user instanceof Model ? $user : null,
+            $reason,
+        );
+
+        $record();
+
+        if (DB::transactionLevel() > 0) {
+            DB::afterRollBack($record);
         }
     }
 }

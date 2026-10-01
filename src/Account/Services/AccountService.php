@@ -23,6 +23,9 @@ use Twstec\Kit\Accounts\Account\Support\AccountDatabaseGuards;
 use Twstec\Kit\Accounts\Account\Support\OrphanedApiKeys;
 use Twstec\Kit\Accounts\Accounts;
 use Twstec\Kit\Accounts\ApiKeys\Models\ApiKey;
+use Twstec\Kit\Accounts\Deletion\DeletionImpediments;
+use Twstec\Kit\Accounts\Deletion\DeletionRequest;
+use Twstec\Kit\Accounts\Deletion\Exceptions\DeletionImpededException;
 use Twstec\Kit\Accounts\Tenancy\Models\Project;
 use Twstec\Kit\Auth\Contracts\AuthUser;
 
@@ -37,9 +40,12 @@ use Twstec\Kit\Auth\Contracts\AuthUser;
  *   (transferOwnership). QUEM pode fazer cada coisa é das Actions
  *   (Account\Actions), que também gravam a trilha de auditoria.
  * - Exclusão de pessoa: recusada enquanto ela for DONA de conta com outros
- *   membros; senão, as contas dela (a pessoal e as que só ela usa) saem junto,
- *   com os dados — o mesmo efeito da 1.x, quando projetos e chaves eram da
- *   pessoa.
+ *   membros ou houver um IMPEDIMENTO declarado (Deletion\DeletionImpediments
+ *   — um registro do aplicativo que a lei manda guardar, por exemplo); senão,
+ *   as contas dela (a pessoal e as que só ela usa) saem junto, com os dados —
+ *   o mesmo efeito da 1.x, quando projetos e chaves eram da pessoa.
+ * - Exclusão de conta: recusada havendo impedimento declarado, consultado
+ *   ANTES de qualquer linha sair.
  *
  * Contas e vínculos não são dados "de conta" (não têm o escopo da conta
  * atual): são a própria estrutura do tenant.
@@ -271,23 +277,28 @@ final class AccountService
 
     /**
      * Motivo traduzido pelo qual a pessoa não pode ser excluída (nulo quando
-     * pode) — para as telas avisarem antes.
+     * pode) — para as telas avisarem antes: dona de conta com outros membros
+     * ou impedimento declarado (Deletion\DeletionImpediments).
      */
     public function deletionDenial(AuthUser $user): ?string
     {
         $compartilhadas = $this->sharedAccountsOwnedBy($user);
 
-        if ($compartilhadas->isEmpty()) {
-            return null;
+        if ($compartilhadas->isNotEmpty()) {
+            return OwnerOfSharedAccountException::messageFor($compartilhadas->pluck('codigo_publico')->all());
         }
 
-        return OwnerOfSharedAccountException::messageFor($compartilhadas->pluck('codigo_publico')->all());
+        $impedimentos = $this->impediments()->check(DeletionRequest::forPerson($user, $this->ownedAccountIds($user)));
+
+        return $impedimentos === [] ? null : DeletionImpededException::messageFor($impedimentos);
     }
 
     /**
-     * Recusa a exclusão da pessoa que é dona de conta com outros membros.
+     * Recusa a exclusão da pessoa que é dona de conta com outros membros ou
+     * que tem impedimento declarado. Só lê: nada muda.
      *
      * @throws OwnerOfSharedAccountException
+     * @throws DeletionImpededException
      */
     public function ensurePersonCanBeDeleted(AuthUser $user): void
     {
@@ -296,6 +307,19 @@ final class AccountService
         if ($compartilhadas->isNotEmpty()) {
             throw new OwnerOfSharedAccountException($compartilhadas->pluck('codigo_publico')->all());
         }
+
+        $this->impediments()->ensureNone(DeletionRequest::forPerson($user, $this->ownedAccountIds($user)));
+    }
+
+    /**
+     * Motivo traduzido pelo qual a CONTA não pode ser excluída agora (nulo
+     * quando pode) — os impedimentos declarados.
+     */
+    public function accountDeletionDenial(Account $account): ?string
+    {
+        $impedimentos = $this->impediments()->check(DeletionRequest::forAccount($account));
+
+        return $impedimentos === [] ? null : DeletionImpededException::messageFor($impedimentos);
     }
 
     /**
@@ -373,7 +397,9 @@ final class AccountService
                         ->where('role', AccountRole::Owner->value)
                         ->where('user_id', '!=', $userId))
                     ->get()
-                    ->each(fn (Account $account) => $this->deleteAccount($account));
+                    // A exclusão da pessoa já perguntou aos verificadores por
+                    // estas contas (no `deleting`): aqui só sai.
+                    ->each(fn (Account $account) => $this->removeAccount($account));
 
                 Project::query()->where('created_by', $userId)->update(['created_by' => null]);
                 ApiKey::query()->where('created_by', $userId)->update(['created_by' => null]);
@@ -388,12 +414,28 @@ final class AccountService
      * Exclui a conta com os dados dela (projetos, chaves, vínculos). Em modo
      * sistema declarado; quem pode excluir (o dono) é decidido antes.
      *
+     * Primeiro pergunta aos verificadores de impedimento
+     * (Deletion\DeletionImpediments): havendo um, nada sai
+     * (DeletionImpededException).
+     *
      * Antes de qualquer linha sair, dentro da mesma transação, avisa quem
      * guarda dado da conta fora deste pacote (Events\AccountDeleting — os
      * uploads, por exemplo): o que o ouvinte apagar volta junto se a
      * exclusão for desfeita.
+     *
+     * @throws DeletionImpededException
      */
     public function deleteAccount(Account $account): void
+    {
+        $this->impediments()->ensureNone(DeletionRequest::forAccount($account));
+
+        $this->removeAccount($account);
+    }
+
+    /**
+     * A remoção em si, sem perguntar de novo (quem chama já perguntou).
+     */
+    private function removeAccount(Account $account): void
     {
         Accounts::asSystem('accounts:delete-account', function () use ($account): void {
             DB::transaction(function () use ($account): void {
@@ -416,5 +458,10 @@ final class AccountService
         });
 
         app(CurrentAccount::class)->forgetRoles();
+    }
+
+    private function impediments(): DeletionImpediments
+    {
+        return app(DeletionImpediments::class);
     }
 }

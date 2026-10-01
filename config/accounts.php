@@ -56,6 +56,18 @@ return [
         'owned_accounts' => (int) env('ACCOUNTS_MAX_OWNED', 10),
     ],
 
+    'deletion' => [
+        // IMPEDIMENTOS DE EXCLUSÃO declarados pelo aplicativo: classes que
+        // implementam Twstec\Kit\Accounts\Deletion\Contracts\DeletionCheck,
+        // perguntadas ANTES de excluir uma pessoa ou uma conta. Havendo um
+        // impedimento, a exclusão é recusada inteira (mensagem traduzida ao
+        // usuário, recusa na trilha de auditoria, nada apagado pela metade).
+        // Ex.: registros que a lei manda guardar e que apontam para a conta.
+        // Pacotes do kit registram os deles em código
+        // (DeletionImpediments::register) — não aparecem aqui.
+        'checks' => [],
+    ],
+
     'migration' => [
         // Tamanho do lote da migração 1.x → contas (pessoas por lote e
         // faixa de ids por UPDATE de projetos/chaves).

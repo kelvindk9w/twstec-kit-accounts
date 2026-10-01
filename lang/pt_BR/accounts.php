@@ -35,6 +35,7 @@ return [
 
     'deletion' => [
         'owner_has_members' => '{1} Esta pessoa é dona de uma conta com outros membros (:accounts). Transfira a propriedade antes de excluí-la.|[2,*] Esta pessoa é dona de contas com outros membros (:accounts). Transfira a propriedade antes de excluí-la.',
+        'referenced' => 'Não é possível excluir agora: há registros que ainda dependem desta conta e precisam ser guardados. Nada foi apagado.',
     ],
 
     'authorization' => [
