@@ -16,21 +16,21 @@ use Twstec\Kit\Accounts\Deletion\DeletionRequest;
  * havendo um impedimento, a exclusão é recusada inteira, com a mensagem ao
  * usuário e a recusa na trilha de auditoria — nada é apagado pela metade.
  *
- * Exemplo (um aplicativo cujos lançamentos contábeis apontam para a conta
- * com chave estrangeira RESTRICT e precisam ser guardados por lei):
+ * Exemplo (um aplicativo cujos registros apontam para a conta com chave
+ * estrangeira RESTRICT e precisam ser guardados por lei):
  *
- *     final class LancamentosImpedemExclusao implements DeletionCheck
+ *     final class RegistrosGuardadosImpedemExclusao implements DeletionCheck
  *     {
  *         public function impediments(DeletionRequest $request): iterable
  *         {
- *             $total = Lancamento::query()
+ *             $total = RegistroGuardado::query()
  *                 ->whereIn('account_id', $request->accountIds())
  *                 ->count();
  *
  *             if ($total > 0) {
  *                 yield new DeletionImpediment(
- *                     'ledger_entries',
- *                     __('app.exclusao.lancamentos', ['total' => $total]),
+ *                     'retained_records',
+ *                     __('app.exclusao.registros_guardados', ['total' => $total]),
  *                 );
  *             }
  *         }

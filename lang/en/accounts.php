@@ -36,6 +36,8 @@ return [
     'deletion' => [
         'owner_has_members' => '{1} This person owns an account that has other members (:accounts). Transfer ownership before deleting them.|[2,*] This person owns accounts that have other members (:accounts). Transfer ownership before deleting them.',
         'referenced' => 'This cannot be deleted right now: there are records that still depend on this account and must be kept. Nothing was deleted.',
+        'personal_account' => 'The personal account is not deleted on its own: it goes away together with the person.',
+        'outside_service' => 'An account is only deleted through the single deletion path (AccountDeletion::deleteAccount), which checks the impediments and records the audit trail. Nothing was deleted.',
     ],
 
     'authorization' => [

@@ -11,8 +11,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOneThrough;
+use Illuminate\Support\Carbon;
 use Twstec\Kit\Accounts\Account\Enums\AccountRole;
 use Twstec\Kit\Accounts\ApiKeys\Models\ApiKey;
+use Twstec\Kit\Accounts\Deletion\AccountDeletion;
 use Twstec\Kit\Accounts\Tenancy\Models\Project;
 use Twstec\Kit\Auth\Contracts\AuthUser;
 use Twstec\Kit\Auth\Support\UserModel;
@@ -33,6 +35,16 @@ use Twstec\Kit\Foundation\Identifiers\RoutesByUuid;
  *
  * Identificadores (3 camadas — anti-enumeração): `id` nunca exposto; `uuid`
  * externo; `codigo_publico` legível ACC-xxxxxx.
+ *
+ * Colunas (para a análise estática — Larastan/PHPStan — de quem usa o pacote):
+ *
+ * @property int $id
+ * @property string $uuid
+ * @property string $codigo_publico
+ * @property string|null $name
+ * @property int|null $personal_user_id
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
  */
 #[Fillable(['uuid', 'name', 'personal_user_id'])]
 class Account extends Model
@@ -40,6 +52,20 @@ class Account extends Model
     use HasPublicCode, HasUuids, RoutesByUuid;
 
     protected const PUBLIC_CODE_PREFIX = 'ACC';
+
+    /**
+     * FALHA FECHADA: a conta só sai pelo caminho único de exclusão
+     * (Deletion\AccountDeletion::deleteAccount), que pergunta aos
+     * verificadores de impedimento, leva junto o que é dela e grava a
+     * trilha. Um `delete()` direto (job, comando, tinker) é recusado antes
+     * de qualquer linha sair, com a recusa na trilha.
+     */
+    protected static function booted(): void
+    {
+        static::deleting(static function (self $account): void {
+            app(AccountDeletion::class)->guardDirectDeletion($account);
+        });
+    }
 
     /**
      * @return list<string>

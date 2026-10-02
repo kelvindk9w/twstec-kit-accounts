@@ -17,7 +17,7 @@ return [
     // Scope authorization (scope:resource:action middleware).
     'scopes' => [
         'denied' => 'This API key is not allowed for the ":scope" scope.',
-        'invalid_format' => 'Each scope must be in the "resource:action" format (e.g.: customers:read, pix:create, withdrawals:*).',
+        'invalid_format' => 'Each scope must be in the "resource:action" format (e.g.: customers:read, orders:create, invoices:*).',
     ],
 
     // Key engine operations.

@@ -13,7 +13,7 @@ use Twstec\Kit\Foundation\Mail\MailPreview;
 // =============================================================================
 
 MailPreview::register('account-invitation', static fn (): AccountInvitationMail => new AccountInvitationMail(
-    accountName: 'Acme Pagamentos',
+    accountName: 'Acme Comércio',
     inviterName: 'Maria Souza',
     roleLabel: __('accounts.roles.admin'),
     token: str_repeat('0', 64),
@@ -21,7 +21,7 @@ MailPreview::register('account-invitation', static fn (): AccountInvitationMail 
 ));
 
 MailPreview::register('orphaned-api-keys', static fn (): OrphanedApiKeysMail => new OrphanedApiKeysMail(
-    accountName: 'Acme Pagamentos',
+    accountName: 'Acme Comércio',
     accountUuid: '00000000-0000-7000-8000-000000000000',
     departedName: 'João Lima',
     removed: true,

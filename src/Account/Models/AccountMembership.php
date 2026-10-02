@@ -7,6 +7,7 @@ namespace Twstec\Kit\Accounts\Account\Models;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 use Twstec\Kit\Accounts\Account\CurrentAccount;
 use Twstec\Kit\Accounts\Account\Enums\AccountRole;
 use Twstec\Kit\Accounts\Account\Exceptions\AccountOwnershipException;
@@ -23,8 +24,19 @@ use Twstec\Kit\Auth\Support\UserModel;
  *   por transferência, que troca a PESSOA do vínculo de dono);
  * - um segundo dono é recusado (e o índice único parcial também recusa);
  * - o vínculo do dono não é apagado enquanto a conta existe (a conta sai
- *   inteira — AccountService::deleteAccount — ou a propriedade é
+ *   inteira — Deletion\AccountDeletion::deleteAccount — ou a propriedade é
  *   transferida antes).
+ *
+ * Colunas (para a análise estática — Larastan/PHPStan — de quem usa o pacote):
+ *
+ * @property int $id
+ * @property int $account_id
+ * @property int $user_id
+ * @property AccountRole $role
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
+ * @property-read Account $account
+ * @property-read Model&AuthUser $user
  */
 #[Fillable(['account_id', 'user_id', 'role'])]
 class AccountMembership extends Model

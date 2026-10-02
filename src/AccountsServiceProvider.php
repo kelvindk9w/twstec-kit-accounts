@@ -34,6 +34,7 @@ use Twstec\Kit\Accounts\ApiKeys\Console\ProcessApiKeyInactivity;
 use Twstec\Kit\Accounts\ApiKeys\Http\Middleware\EnsureAccountWideApiKey;
 use Twstec\Kit\Accounts\ApiKeys\Http\Middleware\EnsureApiKeyScope;
 use Twstec\Kit\Accounts\ApiKeys\Support\PepperWarnings;
+use Twstec\Kit\Accounts\Deletion\AccountDeletion;
 use Twstec\Kit\Accounts\Deletion\DeletionImpediments;
 use Twstec\Kit\Accounts\Tenancy\Middleware\ResolveTenant;
 use Twstec\Kit\Accounts\Tenancy\Support\TenantRateLimitSubject;
@@ -154,6 +155,10 @@ final class AccountsServiceProvider extends ServiceProvider
         // Impedimentos de exclusão (ponto de extensão do aplicativo e dos
         // outros pacotes): um registro por processo.
         $this->app->singleton(DeletionImpediments::class);
+
+        // O caminho único de exclusão de pessoa e de conta: guarda, entre a
+        // pergunta e o `delete()`, quais contas podem sair agora.
+        $this->app->singleton(AccountDeletion::class);
 
         // Contexto do tenant da requisição, preenchido pelo ResolveTenant.
         // PHP-FPM garante o ciclo por requisição; se Octane entrar um dia,

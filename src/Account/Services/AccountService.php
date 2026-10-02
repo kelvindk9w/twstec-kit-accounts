@@ -23,9 +23,11 @@ use Twstec\Kit\Accounts\Account\Support\AccountDatabaseGuards;
 use Twstec\Kit\Accounts\Account\Support\OrphanedApiKeys;
 use Twstec\Kit\Accounts\Accounts;
 use Twstec\Kit\Accounts\ApiKeys\Models\ApiKey;
+use Twstec\Kit\Accounts\Deletion\AccountDeletion;
 use Twstec\Kit\Accounts\Deletion\DeletionImpediments;
 use Twstec\Kit\Accounts\Deletion\DeletionRequest;
 use Twstec\Kit\Accounts\Deletion\Exceptions\DeletionImpededException;
+use Twstec\Kit\Accounts\Deletion\Exceptions\DeletionOutsideServiceException;
 use Twstec\Kit\Accounts\Tenancy\Models\Project;
 use Twstec\Kit\Auth\Contracts\AuthUser;
 
@@ -44,8 +46,9 @@ use Twstec\Kit\Auth\Contracts\AuthUser;
  *   — um registro do aplicativo que a lei manda guardar, por exemplo); senão,
  *   as contas dela (a pessoal e as que só ela usa) saem junto, com os dados —
  *   o mesmo efeito da 1.x, quando projetos e chaves eram da pessoa.
- * - Exclusão de conta: recusada havendo impedimento declarado, consultado
- *   ANTES de qualquer linha sair.
+ * - Exclusão de conta: pelo caminho único (Deletion\AccountDeletion) —
+ *   recusada havendo impedimento declarado, consultado ANTES de qualquer
+ *   linha sair.
  *
  * Contas e vínculos não são dados "de conta" (não têm o escopo da conta
  * atual): são a própria estrutura do tenant.
@@ -411,50 +414,57 @@ final class AccountService
     }
 
     /**
-     * Exclui a conta com os dados dela (projetos, chaves, vínculos). Em modo
-     * sistema declarado; quem pode excluir (o dono) é decidido antes.
+     * Exclui a conta com os dados dela (projetos, chaves, vínculos) pelo
+     * CAMINHO ÚNICO DE EXCLUSÃO (Deletion\AccountDeletion::deleteAccount):
+     * pergunta antes aos verificadores de impedimento, aplica a rede de
+     * segurança da chave estrangeira RESTRICT, grava a recusa (ou o sucesso)
+     * na trilha. Recusada → DeletionImpededException, nada sai. Quem pode
+     * excluir (o dono) é decidido antes.
      *
-     * Primeiro pergunta aos verificadores de impedimento
-     * (Deletion\DeletionImpediments): havendo um, nada sai
-     * (DeletionImpededException).
-     *
-     * Antes de qualquer linha sair, dentro da mesma transação, avisa quem
-     * guarda dado da conta fora deste pacote (Events\AccountDeleting — os
-     * uploads, por exemplo): o que o ouvinte apagar volta junto se a
-     * exclusão for desfeita.
+     * Mantido por compatibilidade: código novo chama o AccountDeletion.
      *
      * @throws DeletionImpededException
      */
     public function deleteAccount(Account $account): void
     {
-        $this->impediments()->ensureNone(DeletionRequest::forAccount($account));
-
-        $this->removeAccount($account);
+        app(AccountDeletion::class)->deleteAccount($account);
     }
 
     /**
-     * A remoção em si, sem perguntar de novo (quem chama já perguntou).
+     * A remoção em si, sem perguntar de novo — SÓ para o caminho único de
+     * exclusão (Deletion\AccountDeletion), que já perguntou e abriu a
+     * transação. Conta que ele não liberou é recusada AQUI, antes de qualquer
+     * linha sair (DeletionOutsideServiceException, com a trilha).
+     *
+     * Em modo sistema declarado. Antes de qualquer linha sair, dentro da
+     * mesma transação, avisa quem guarda dado da conta fora deste pacote
+     * (Events\AccountDeleting — os uploads, por exemplo): o que o ouvinte
+     * apagar volta junto se a exclusão for desfeita.
+     *
+     * @internal
+     *
+     * @throws DeletionOutsideServiceException
      */
-    private function removeAccount(Account $account): void
+    public function removeAccount(Account $account): void
     {
+        app(AccountDeletion::class)->guardDirectDeletion($account);
+
         Accounts::asSystem('accounts:delete-account', function () use ($account): void {
-            DB::transaction(function () use ($account): void {
-                AccountDeleting::dispatch($account);
+            AccountDeleting::dispatch($account);
 
-                ApiKey::query()->where('account_id', $account->getKey())->get()
-                    ->each(fn (ApiKey $key) => $key->projects()->detach());
+            ApiKey::query()->where('account_id', $account->getKey())->get()
+                ->each(fn (ApiKey $key) => $key->projects()->detach());
 
-                ApiKey::query()->where('account_id', $account->getKey())->update(['rotated_from_id' => null, 'rotated_to_id' => null]);
-                ApiKey::query()->where('account_id', $account->getKey())->delete();
-                Project::query()->where('account_id', $account->getKey())->delete();
-                AccountInvitation::query()->where('account_id', $account->getKey())->delete();
+            ApiKey::query()->where('account_id', $account->getKey())->update(['rotated_from_id' => null, 'rotated_to_id' => null]);
+            ApiKey::query()->where('account_id', $account->getKey())->delete();
+            Project::query()->where('account_id', $account->getKey())->delete();
+            AccountInvitation::query()->where('account_id', $account->getKey())->delete();
 
-                // A conta sai antes dos vínculos: no PostgreSQL, a regra do
-                // dono só deixa o vínculo do dono sair quando a conta já saiu.
-                $account->delete();
+            // A conta sai antes dos vínculos: no PostgreSQL, a regra do
+            // dono só deixa o vínculo do dono sair quando a conta já saiu.
+            $account->delete();
 
-                AccountMembership::query()->where('account_id', $account->getKey())->delete();
-            });
+            AccountMembership::query()->where('account_id', $account->getKey())->delete();
         });
 
         app(CurrentAccount::class)->forgetRoles();

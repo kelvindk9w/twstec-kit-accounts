@@ -17,7 +17,7 @@ return [
     // Autorização por scope (middleware scope:recurso:acao).
     'scopes' => [
         'denied' => 'Esta chave de API não tem permissão para o escopo ":scope".',
-        'invalid_format' => 'Cada escopo deve estar no formato "recurso:acao" (ex.: customers:read, pix:create, withdrawals:*).',
+        'invalid_format' => 'Cada escopo deve estar no formato "recurso:acao" (ex.: customers:read, orders:create, invoices:*).',
     ],
 
     // Operações do motor de chaves.

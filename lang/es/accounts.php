@@ -36,6 +36,8 @@ return [
     'deletion' => [
         'owner_has_members' => '{1} Esta persona es propietaria de una cuenta con otros miembros (:accounts). Transfiera la propiedad antes de eliminarla.|[2,*] Esta persona es propietaria de cuentas con otros miembros (:accounts). Transfiera la propiedad antes de eliminarla.',
         'referenced' => 'No es posible eliminar ahora: hay registros que todavía dependen de esta cuenta y deben conservarse. No se eliminó nada.',
+        'personal_account' => 'La cuenta personal no se elimina por separado: sale junto con la persona.',
+        'outside_service' => 'Una cuenta solo se elimina por el camino único de eliminación (AccountDeletion::deleteAccount), que consulta los impedimentos y registra la auditoría. No se eliminó nada.',
     ],
 
     'authorization' => [

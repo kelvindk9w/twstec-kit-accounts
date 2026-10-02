@@ -5,16 +5,15 @@ declare(strict_types=1);
 namespace Twstec\Kit\Accounts\Account\Support;
 
 use Illuminate\Contracts\Events\Dispatcher;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\DB;
 use Twstec\Kit\Accounts\Account\Events\PersonDeleted;
 use Twstec\Kit\Accounts\Account\Events\PersonDeleting;
+use Twstec\Kit\Accounts\Account\Exceptions\OwnerOfSharedAccountException;
 use Twstec\Kit\Accounts\Account\Models\Account;
 use Twstec\Kit\Accounts\Account\Services\AccountService;
+use Twstec\Kit\Accounts\Deletion\AccountDeletion;
 use Twstec\Kit\Accounts\Deletion\Exceptions\DeletionImpededException;
 use Twstec\Kit\Auth\Contracts\AuthUser;
 use Twstec\Kit\Auth\Support\UserModel;
-use Twstec\Kit\Foundation\Audit\AuditTrail;
 use WeakMap;
 
 /**
@@ -28,9 +27,13 @@ use WeakMap;
  *     membros — a propriedade precisa ser transferida antes;
  *   - recusada (Deletion\Exceptions\DeletionImpededException, nada muda) se
  *     um verificador declarado disser que ela, ou uma conta que sairia junto,
- *     não pode ser excluída agora (Deletion\DeletionImpediments) — com a
- *     recusa e o motivo na trilha de auditoria (`user.deleted`, `denied`),
- *     mesmo que quem chamou desfaça a transação em volta;
+ *     não pode ser excluída agora (Deletion\DeletionImpediments);
+ *   - nas duas recusas, o motivo vai para a trilha de auditoria
+ *     (`user.deleted`, `denied`), mesmo que quem chamou desfaça a transação
+ *     em volta — por aqui no `delete()` direto, pelo
+ *     Deletion\AccountDeletion::deleteUser quando a exclusão passa por ele
+ *     (o caminho único, que tem também a rede de segurança da chave
+ *     estrangeira RESTRICT);
  *   - senão, as contas de que ela era dona (a pessoal e as que só ela usava)
  *     saem com os dados — o mesmo efeito da 1.x; nas contas em que era admin
  *     ou member ela só deixa de ser membro, e as chaves que criou continuam
@@ -98,8 +101,12 @@ final class PersonLifecycle
     {
         try {
             $this->accounts->ensurePersonCanBeDeleted($user);
-        } catch (DeletionImpededException $exception) {
-            $this->recordRefusal($user, $exception->getMessage());
+        } catch (DeletionImpededException|OwnerOfSharedAccountException $exception) {
+            // Pelo caminho único (AccountDeletion::deleteUser), quem grava é
+            // ele — uma linha só; pelo `delete()` direto, é aqui.
+            if (! $this->deletion()->isDeletingPerson($user)) {
+                $this->deletion()->recordPersonRefusal($user, $exception->getMessage());
+            }
 
             throw $exception;
         }
@@ -120,7 +127,9 @@ final class PersonLifecycle
 
         PersonDeleted::dispatch($user, $ids);
 
-        $this->accounts->cleanUpAfterPersonDeleted($user->getKey(), $ids);
+        // As contas que saem junto já foram perguntadas no `deleting`: o
+        // caminho único de exclusão as libera para sair.
+        $this->deletion()->allowingRemoval($ids, fn () => $this->accounts->cleanUpAfterPersonDeleted($user->getKey(), $ids));
 
         // Chaves que a pessoa criou em contas de OUTROS donos continuam
         // valendo: o dono e os admins de cada uma são avisados (uma vez por
@@ -131,25 +140,8 @@ final class PersonLifecycle
         }
     }
 
-    /**
-     * A recusa vai para a trilha AGORA e — se quem chamou estava numa
-     * transação e a desfizer por causa da exceção — de novo depois do
-     * desfazer: a linha gravada dentro dela iria embora junto. Fora de
-     * transação, uma linha só; numa transação que não é desfeita, também.
-     */
-    private function recordRefusal(AuthUser $user, string $reason): void
+    private function deletion(): AccountDeletion
     {
-        $trail = app(AuditTrail::class);
-        $record = static fn () => $trail->denied(
-            AuditTrail::subjectType(UserModel::name()).'.deleted',
-            $user instanceof Model ? $user : null,
-            $reason,
-        );
-
-        $record();
-
-        if (DB::transactionLevel() > 0) {
-            DB::afterRollBack($record);
-        }
+        return app(AccountDeletion::class);
     }
 }

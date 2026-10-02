@@ -17,9 +17,9 @@ use Twstec\Kit\Foundation\Audit\Enums\AuditContext;
  *
  * Uso em rotas (SEMPRE depois de resolve.tenant):
  *
- *   Route::post('/pix', ...)->middleware('scope:pix:create');
+ *   Route::post('/orders', ...)->middleware('scope:orders:create');
  *
- * O parâmetro é "recurso:acao" (ex.: customers:read, withdrawals:*).
+ * O parâmetro é "recurso:acao" (ex.: customers:read, invoices:*).
  * A verificação é ApiKey::allows() — casamento exato ou wildcard.
  * Sem permissão: 403 com mensagem traduzida indicando o scope exigido — e a
  * tentativa na trilha (`api_key.scope_denied`, contexto `api`, `denied`, a

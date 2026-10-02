@@ -8,8 +8,9 @@ use Illuminate\Foundation\Events\Dispatchable;
 use Twstec\Kit\Accounts\Account\Models\Account;
 
 /**
- * A conta vai ser excluída AGORA, com os dados dela — disparado por
- * AccountService::deleteAccount() DENTRO da transação da exclusão, antes de
+ * A conta vai ser excluída AGORA, com os dados dela — disparado pelo caminho
+ * único de exclusão (Deletion\AccountDeletion; também na limpeza das contas
+ * que saem junto com a pessoa) DENTRO da transação da exclusão, antes de
  * qualquer linha sair. Quem guarda dado da conta fora deste pacote (os
  * uploads, por exemplo) apaga o que é dela aqui, na mesma transação: se a
  * exclusão for desfeita, o que o ouvinte apagou volta junto.

@@ -30,14 +30,16 @@ use Twstec\Kit\Accounts\Deletion\Exceptions\DeletionImpededException;
  * - a exclusão da PESSOA, no `deleting` do model de usuário
  *   (Account\Support\PersonLifecycle) e na pré-checagem das telas
  *   (AccountService::deletionDenial — o /admin usa);
- * - a exclusão da CONTA (Account\Actions\DeleteAccount, na pré-checagem e de
- *   novo antes de apagar, e AccountService::deleteAccount).
+ * - a exclusão da CONTA, no caminho único (Deletion\AccountDeletion) e na
+ *   pré-checagem da página da conta (Account\Actions\DeleteAccount).
  *
  * Havendo impedimento: Exceptions\DeletionImpededException, com a mensagem
  * traduzida — e a recusa vai para a trilha de auditoria por quem a recebe
- * (a Action, o /admin, o PersonLifecycle).
+ * (o AccountDeletion — o caminho único que as telas e o código usam —, a
+ * pré-checagem da Action, o PersonLifecycle no `delete()` direto da pessoa).
  *
- * REDE DE SEGURANÇA: guardIntegrity() roda a exclusão num savepoint e, se o
+ * REDE DE SEGURANÇA (aplicada pelo Deletion\AccountDeletion):
+ * guardIntegrity() roda a exclusão num savepoint e, se o
  * banco recusar por chave estrangeira (um registro do aplicativo que aponta
  * para o que sairia e que ninguém declarou como impedimento), devolve a mesma
  * recusa limpa em vez do erro bruto do banco — com a transação desfeita.

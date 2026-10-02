@@ -9,7 +9,7 @@ use InvalidArgumentException;
 /**
  * UM motivo pelo qual a exclusão não pode acontecer agora.
  *
- * - `code`: identificador estável, em snake_case (`ledger_entries`,
+ * - `code`: identificador estável, em snake_case (`retained_records`,
  *   `legal_hold`, `owner_of_shared_account`) — para teste, log e decisão de
  *   tela; nunca muda com o idioma.
  * - `message`: o texto que o usuário lê e que vai para a trilha de auditoria

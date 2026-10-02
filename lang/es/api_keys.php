@@ -16,7 +16,7 @@ return [
     // Autorización por scope (middleware scope:recurso:accion).
     'scopes' => [
         'denied' => 'Esta clave de API no tiene permiso para el alcance ":scope".',
-        'invalid_format' => 'Cada alcance debe estar en el formato "recurso:accion" (ej.: customers:read, pix:create, withdrawals:*).',
+        'invalid_format' => 'Cada alcance debe estar en el formato "recurso:accion" (ej.: customers:read, orders:create, invoices:*).',
     ],
 
     // Operaciones del motor de claves.

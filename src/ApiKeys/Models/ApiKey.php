@@ -31,12 +31,34 @@ use Twstec\Kit\Foundation\Identifiers\RoutesByUuid;
  *   toca o banco; a verificação é timing-safe.
  *
  * Scopes (jsonb): permissões granulares "recurso:acao" (ex.: customers:read,
- * pix:create, withdrawals:*). Padrão na criação: ['*:*'] (tudo habilitado).
+ * orders:create, invoices:*). Padrão na criação: ['*:*'] (tudo habilitado).
  * Ver allows().
  *
  * Ciclo de vida: validade opcional (expires_at — vazio = sem validade),
  * rotação com morte imediata ou programada (grace_ends_at) e expiração por
  * inatividade (job diário — ver config/api_keys.php).
+ *
+ * Colunas (para a análise estática — Larastan/PHPStan — de quem usa o pacote):
+ *
+ * @property int $id
+ * @property string $uuid
+ * @property string $codigo_publico
+ * @property int $account_id
+ * @property int|null $created_by
+ * @property string $name
+ * @property string $public_key
+ * @property string $secret_hash
+ * @property list<string> $scopes
+ * @property bool $restricted_to_projects
+ * @property ApiKeyStatus $status
+ * @property Carbon|null $expires_at
+ * @property Carbon|null $last_used_at
+ * @property Carbon|null $inactivity_warning_sent_at
+ * @property Carbon|null $grace_ends_at
+ * @property int|null $rotated_from_id
+ * @property int|null $rotated_to_id
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
  */
 #[Fillable([
     'account_id', 'created_by', 'name', 'public_key', 'secret_hash', 'scopes', 'restricted_to_projects',
@@ -141,7 +163,7 @@ class ApiKey extends Model
      * Casamento exato ou wildcard em qualquer lado: `*:*` (tudo),
      * `customers:*` (todas as ações do recurso).
      *
-     * @param  string  $scope  Ex.: "customers:read", "pix:create".
+     * @param  string  $scope  Ex.: "customers:read", "orders:create".
      */
     public function allows(string $scope): bool
     {

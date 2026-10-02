@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Twstec\Kit\Accounts\Account\Actions;
 
 use Illuminate\Auth\Access\AuthorizationException;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Twstec\Kit\Accounts\Account\Actions\Concerns\GuardsAccountAction;
 use Twstec\Kit\Accounts\Account\Enums\AccountAbility;
 use Twstec\Kit\Accounts\Account\Enums\AccountAuditEvent;
@@ -13,7 +13,7 @@ use Twstec\Kit\Accounts\Account\Models\Account;
 use Twstec\Kit\Accounts\Account\Services\AccountService;
 use Twstec\Kit\Accounts\Account\Support\AccountAudit;
 use Twstec\Kit\Accounts\Accounts;
-use Twstec\Kit\Accounts\Deletion\DeletionImpediments;
+use Twstec\Kit\Accounts\Deletion\AccountDeletion;
 use Twstec\Kit\Accounts\Deletion\Exceptions\DeletionImpededException;
 use Twstec\Kit\Auth\Contracts\AuthUser;
 use Twstec\Kit\Auth\Services\SensitiveActionService;
@@ -34,6 +34,8 @@ use Twstec\Kit\Auth\Services\SensitiveActionService;
  *   aponta para a conta sem ter sido declarado (chave estrangeira RESTRICT)
  *   vira a mesma recusa, com a transação desfeita — nunca o erro bruto do
  *   banco.
+ * - A exclusão em si é a do CAMINHO ÚNICO (Deletion\AccountDeletion), o
+ *   mesmo que o código do aplicativo usa.
  *
  * Trilha: `account.deleted` (na mesma transação da exclusão).
  */
@@ -45,6 +47,7 @@ final class DeleteAccount
         private readonly AccountService $accounts,
         private readonly SensitiveActionService $sensitive,
         private readonly AccountAudit $audit,
+        private readonly AccountDeletion $deletion,
     ) {}
 
     /**
@@ -79,19 +82,13 @@ final class DeleteAccount
         }
 
         try {
-            DeletionImpediments::guardIntegrity(function () use ($account, $actor): void {
-                DB::transaction(function () use ($account, $actor): void {
-                    $this->audit->record(AccountAuditEvent::Deleted, $account, $actor, $account, [
-                        'name' => ['before' => $account->name, 'after' => null],
-                        'members' => ['before' => $account->memberships()->count(), 'after' => 0],
-                    ]);
-
-                    $this->accounts->deleteAccount($account);
-                });
-            });
+            // O caminho único de exclusão: pergunta de novo, rede de
+            // segurança da RESTRICT, trilha (sucesso ou recusa).
+            $this->deletion->deleteAccount($account, $actor);
         } catch (DeletionImpededException $exception) {
-            // Desfeita a transação (nada saiu), a recusa fica na trilha.
-            $this->reject(AccountAuditEvent::Deleted, $account, $actor, 'account', $exception->getMessage(), $account);
+            // Desfeita a exclusão (nada saiu) e a recusa JÁ na trilha (pelo
+            // AccountDeletion): aqui só o erro no campo.
+            throw ValidationException::withMessages(['account' => $exception->getMessage()]);
         }
 
         Accounts::clearSelection();

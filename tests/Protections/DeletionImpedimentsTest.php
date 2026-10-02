@@ -43,21 +43,21 @@ use Twstec\Kit\Foundation\Audit\Models\AuditEvent;
  * Um registro "do aplicativo" que a lei manda guardar e que aponta para a
  * conta — o verificador do exemplo da documentação.
  */
-final class LancamentosGuardadosImpedemExclusao implements DeletionCheck
+final class RegistrosGuardadosImpedemExclusao implements DeletionCheck
 {
     public function impediments(DeletionRequest $request): iterable
     {
-        $total = DB::table('lancamentos_de_teste')->whereIn('account_id', $request->accountIds())->count();
+        $total = DB::table('registros_guardados_de_teste')->whereIn('account_id', $request->accountIds())->count();
 
         if ($total > 0) {
-            yield new DeletionImpediment('ledger_entries', "Há {$total} lançamento(s) que a lei manda guardar.");
+            yield new DeletionImpediment('retained_records', "Há {$total} registro(s) que a lei manda guardar.");
         }
     }
 }
 
-function criaTabelaDeLancamentos(bool $restrita = false): void
+function criaTabelaDeRegistrosGuardados(bool $restrita = false): void
 {
-    Schema::create('lancamentos_de_teste', function (Blueprint $tabela) use ($restrita): void {
+    Schema::create('registros_guardados_de_teste', function (Blueprint $tabela) use ($restrita): void {
         $tabela->id();
         $chave = $tabela->foreignId('account_id');
 
@@ -86,30 +86,30 @@ function tokenDeExclusao(User $pessoa): string
 }
 
 it('verificador DECLARADO NA CONFIGURAÇÃO recusa a exclusão da PESSOA inteira: nada sai, mensagem traduzida, recusa na trilha', function (): void {
-    criaTabelaDeLancamentos();
-    config(['accounts.deletion.checks' => [LancamentosGuardadosImpedemExclusao::class]]);
+    criaTabelaDeRegistrosGuardados();
+    config(['accounts.deletion.checks' => [RegistrosGuardadosImpedemExclusao::class]]);
 
     $ana = User::fixture(['email_verified_at' => now()]);
     $pessoal = app(AccountService::class)->personalAccountOf($ana);
-    DB::table('lancamentos_de_teste')->insert(['account_id' => $pessoal->id]);
+    DB::table('registros_guardados_de_teste')->insert(['account_id' => $pessoal->id]);
 
     try {
         $ana->delete();
         $this->fail('A exclusão deveria ter sido recusada.');
     } catch (DeletionImpededException $exception) {
-        expect($exception->codes())->toBe(['ledger_entries'])
-            ->and($exception->getMessage())->toBe('Há 1 lançamento(s) que a lei manda guardar.');
+        expect($exception->codes())->toBe(['retained_records'])
+            ->and($exception->getMessage())->toBe('Há 1 registro(s) que a lei manda guardar.');
     }
 
     expect(User::query()->whereKey($ana->id)->exists())->toBeTrue()
         ->and(Account::query()->whereKey($pessoal->id)->exists())->toBeTrue()
-        ->and(app(AccountService::class)->deletionDenial($ana))->toBe('Há 1 lançamento(s) que a lei manda guardar.');
+        ->and(app(AccountService::class)->deletionDenial($ana))->toBe('Há 1 registro(s) que a lei manda guardar.');
 
     $recusa = AuditEvent::query()->where('action', 'user.deleted')->sole();
 
     expect($recusa->outcome)->toBe(AuditOutcome::Denied)
         ->and($recusa->subject_uuid)->toBe((string) $ana->uuid)
-        ->and($recusa->reason)->toBe('Há 1 lançamento(s) que a lei manda guardar.');
+        ->and($recusa->reason)->toBe('Há 1 registro(s) que a lei manda guardar.');
 });
 
 it('a recusa fica na trilha MESMO quando quem chamou desfaz a transação em volta', function (): void {
@@ -126,8 +126,8 @@ it('a recusa fica na trilha MESMO quando quem chamou desfaz a transação em vol
 });
 
 it('sem impedimento, a exclusão segue como sempre (o ponto de extensão não muda nada sozinho)', function (): void {
-    criaTabelaDeLancamentos();
-    config(['accounts.deletion.checks' => [LancamentosGuardadosImpedemExclusao::class]]);
+    criaTabelaDeRegistrosGuardados();
+    config(['accounts.deletion.checks' => [RegistrosGuardadosImpedemExclusao::class]]);
 
     $ana = User::fixture(['email_verified_at' => now()]);
     $ana->delete();
@@ -156,19 +156,19 @@ it('o verificador recebe a PESSOA e as CONTAS que sairiam junto; exceção dele 
 });
 
 it('EXCLUIR A CONTA (Action do painel): a pré-checagem recusa ANTES de pedir o código, com erro no campo e `denied` na trilha; nada sai', function (): void {
-    criaTabelaDeLancamentos();
-    config(['accounts.deletion.checks' => [LancamentosGuardadosImpedemExclusao::class]]);
+    criaTabelaDeRegistrosGuardados();
+    config(['accounts.deletion.checks' => [RegistrosGuardadosImpedemExclusao::class]]);
 
     $dona = User::fixture(['email_verified_at' => now()]);
-    $empresa = app(AccountService::class)->createAccount('Empresa com lançamentos', $dona);
-    DB::table('lancamentos_de_teste')->insert(['account_id' => $empresa->id]);
+    $empresa = app(AccountService::class)->createAccount('Empresa com registros guardados', $dona);
+    DB::table('registros_guardados_de_teste')->insert(['account_id' => $empresa->id]);
     $this->actingAs($dona);
 
     try {
         Accounts::actingAs($empresa, fn () => app(DeleteAccount::class)->authorize($dona), $dona);
         $this->fail('A pré-checagem deveria ter recusado.');
     } catch (ValidationException $exception) {
-        expect($exception->errors())->toBe(['account' => ['Há 1 lançamento(s) que a lei manda guardar.']]);
+        expect($exception->errors())->toBe(['account' => ['Há 1 registro(s) que a lei manda guardar.']]);
     }
 
     $token = tokenDeExclusao($dona);
@@ -177,7 +177,7 @@ it('EXCLUIR A CONTA (Action do painel): a pré-checagem recusa ANTES de pedir o 
         ->toThrow(ValidationException::class);
 
     expect(Account::query()->whereKey($empresa->id)->exists())->toBeTrue()
-        ->and(app(AccountService::class)->accountDeletionDenial($empresa))->toBe('Há 1 lançamento(s) que a lei manda guardar.')
+        ->and(app(AccountService::class)->accountDeletionDenial($empresa))->toBe('Há 1 registro(s) que a lei manda guardar.')
         ->and(AuditEvent::query()->where('action', 'account.deleted')->where('tenant_uuid', $empresa->uuid)->pluck('outcome')->map->value->all())
         ->toBe(['denied', 'denied'])
         // O token não foi gasto: a recusa veio antes.
@@ -199,14 +199,14 @@ it('registro do aplicativo com chave estrangeira RESTRICT que NINGUÉM declarou:
     // (e não ligam dentro da transação do teste): o gatilho reproduz a recusa
     // do banco com o mesmo erro que a RESTRICT dá. A RESTRICT de verdade, no
     // SQLite e no PostgreSQL, é coberta na suíte do starter.
-    criaTabelaDeLancamentos();
-    DB::unprepared("CREATE TRIGGER lancamentos_restrict BEFORE DELETE ON accounts
-        WHEN EXISTS (SELECT 1 FROM lancamentos_de_teste WHERE account_id = OLD.id)
+    criaTabelaDeRegistrosGuardados();
+    DB::unprepared("CREATE TRIGGER registros_guardados_restrict BEFORE DELETE ON accounts
+        WHEN EXISTS (SELECT 1 FROM registros_guardados_de_teste WHERE account_id = OLD.id)
         BEGIN SELECT RAISE(ABORT, 'FOREIGN KEY constraint failed'); END");
 
     $dona = User::fixture(['email_verified_at' => now()]);
     $empresa = app(AccountService::class)->createAccount('Empresa referenciada', $dona);
-    DB::table('lancamentos_de_teste')->insert(['account_id' => $empresa->id]);
+    DB::table('registros_guardados_de_teste')->insert(['account_id' => $empresa->id]);
     $this->actingAs($dona);
 
     $token = tokenDeExclusao($dona);

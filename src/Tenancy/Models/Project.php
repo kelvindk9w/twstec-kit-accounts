@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Support\Carbon;
 use Twstec\Kit\Accounts\Account\Concerns\BelongsToAccount;
 use Twstec\Kit\Accounts\ApiKeys\Models\ApiKey;
 use Twstec\Kit\Accounts\Tenancy\Enums\ProjectStatus;
@@ -26,6 +27,18 @@ use Twstec\Kit\Foundation\Identifiers\RoutesByUuid;
  *
  * Identificadores (3 camadas — anti-enumeração): `id` nunca exposto; `uuid` externo;
  * `codigo_publico` legível PRJ-xxxxxx.
+ *
+ * Colunas (para a análise estática — Larastan/PHPStan — de quem usa o pacote):
+ *
+ * @property int $id
+ * @property string $uuid
+ * @property string $codigo_publico
+ * @property int $account_id
+ * @property int|null $created_by
+ * @property string $name
+ * @property ProjectStatus $status
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
  */
 #[Fillable(['account_id', 'created_by', 'name', 'status'])]
 class Project extends Model

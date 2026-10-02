@@ -38,7 +38,8 @@ starter Livewire tem as telas; outro front reaproveita as Actions.
 | `Account\Enums` | `AccountRole` (papéis fixos e a matriz `allows()`) e `AccountAbility` (as ações, também no Gate como `accounts.*`) |
 | `Account\Concerns\BelongsToAccount` + `Account\Scopes\AccountScope` | O isolamento: escopo global da conta atual (exceção sem conta), gravação só na conta atual, `created_by`; registro sem conta só num model que declare a exceção (`allowsRecordWithoutAccount()` — hoje só a foto pessoal dos uploads) e só em modo sistema |
 | `Account\CurrentAccount` | A conta atual: quadro explícito (API, `actingAs`, modo sistema), modo sistema da requisição, sessão web (seleção ou conta pessoal); e o papel de cada conta + pessoa guardado por requisição (`roleFor`), esquecido quando um vínculo muda, no fim da requisição e a cada job |
-| `Account\Services\AccountService` | Conta pessoal, conta de empresa, membros, a regra de exclusão de pessoa, excluir conta |
+| `Account\Services\AccountService` | Conta pessoal, conta de empresa, membros, a regra de exclusão de pessoa |
+| `Deletion\AccountDeletion` | O caminho único de exclusão de pessoa e de conta (verificadores, rede de segurança da `RESTRICT`, trilha) |
 | `Account\Events` | Pontos de extensão: `AccountCreated`, `MemberAdded`, `MemberRemoved` e, para quem guarda dado das contas fora do pacote (os uploads), `PersonDeleting` (só leitura — a exclusão ainda pode ser recusada), `PersonDeleted` e `AccountDeleting` (na transação da exclusão da conta) |
 | `Account\Actions` | A regra de cada fluxo de conta, conferindo o papel e gravando a trilha (inclusive as recusas): `CreateAccount`, `RenameAccount`, `DeleteAccount` e `TransferOwnership` (os dois últimos com o token de ação sensível), `SwitchAccount`, `InviteMember`, `ResendInvitation`, `RevokeInvitation`, `AcceptInvitation`, `RegisterAndAcceptInvitation` (o aceite cria a conta, verificada), `DeclineInvitation`, `ChangeMemberRole`, `RemoveMember`, `LeaveAccount`. Pré-checagem para a tela conferir o papel antes de abrir a confirmação ou mandar o código: `authorize($pessoa)` em `TransferOwnership`, `DeleteAccount`, `RenameAccount`, `RemoveMember` e `RevokeInvitation` — o mesmo 403 de `handle()`, com a recusa na trilha (`denied`) |
 | `Account\Support\MemberRules` | Quem mexe em quem (a mesma regra na Action e na tela) |
@@ -124,6 +125,28 @@ Nenhuma proteção depende de o aplicativo lembrar de chamar algo:
   mesma recusa limpa, com a transação desfeita — nunca o erro bruto do banco
   (`DeletionImpediments::guardIntegrity`). Ver
   [docs/tenancy.md](https://github.com/kelvindk9w/tws-laravel-starter-kit/blob/desenvolvimento/docs/tenancy.md#impedimentos-de-exclusão).
+- **Caminho único de exclusão** (`Deletion\AccountDeletion`): pessoa e conta
+  se excluem por ele — as telas dos starters, o `/admin` e a aprovação em dois
+  passos usam, e o código do aplicativo (job, comando, serviço) deve usar:
+  pergunta aos verificadores, aplica a rede de segurança da `RESTRICT` e grava
+  a recusa na trilha uma vez só, mesmo com a transação de quem chamou
+  desfeita. Falha fechada: `delete()` direto no model da conta é recusado
+  (`DeletionOutsideServiceException`, com a trilha); o `delete()` da pessoa
+  continua perguntando aos verificadores no `deleting`.
+
+  ```php
+  use Twstec\Kit\Accounts\Deletion\AccountDeletion;
+  use Twstec\Kit\Accounts\Deletion\Exceptions\DeletionImpededException;
+
+  try {
+      app(AccountDeletion::class)->deleteUser($pessoa);       // ou deleteAccount($conta, $quemPediu)
+  } catch (DeletionImpededException $recusa) {
+      // Nada foi apagado; a recusa já está na trilha. $recusa->codes(), $recusa->getMessage().
+  }
+  ```
+
+  Ver
+  [docs/tenancy.md](https://github.com/kelvindk9w/tws-laravel-starter-kit/blob/desenvolvimento/docs/tenancy.md#o-caminho-único-de-exclusão).
 
 - **Autenticação por chave:** o alias `resolve.tenant`, que entra SEMPRE no
   grupo das rotas v1 (inclusive quando o aplicativo as registra ele mesmo).
