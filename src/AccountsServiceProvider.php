@@ -37,10 +37,12 @@ use Twstec\Kit\Accounts\ApiKeys\Support\PepperWarnings;
 use Twstec\Kit\Accounts\Deletion\AccountDeletion;
 use Twstec\Kit\Accounts\Deletion\DeletionImpediments;
 use Twstec\Kit\Accounts\Tenancy\Middleware\ResolveTenant;
+use Twstec\Kit\Accounts\Tenancy\Support\TenantIdempotencyScope;
 use Twstec\Kit\Accounts\Tenancy\Support\TenantRateLimitSubject;
 use Twstec\Kit\Accounts\Tenancy\TenantContext;
 use Twstec\Kit\Auth\Contracts\AuthUser;
 use Twstec\Kit\Foundation\Http\Exceptions\ApiErrorRenderer;
+use Twstec\Kit\Foundation\Idempotency\Contracts\IdempotencyScopeResolver;
 use Twstec\Kit\Foundation\Localization\PackageTranslations;
 use Twstec\Kit\Foundation\Security\Contracts\RateLimitSubjectResolver;
 use Twstec\Kit\Foundation\Tracing\Http\OutboundHttpTrail;
@@ -65,9 +67,10 @@ use WeakMap;
  *   tinham no aplicativo) e as traduções do domínio (`api_keys.*` e o
  *   assunto do aviso de inatividade), com o aplicativo vencendo na mesma
  *   chave;
- * - o contexto do tenant da requisição (singleton) e quem o limite da API
+ * - o contexto do tenant da requisição (singleton), quem o limite da API
  *   conta numa requisição autenticada (a chave ou o tenant — ver
- *   Tenancy\Support\TenantRateLimitSubject);
+ *   Tenancy\Support\TenantRateLimitSubject) e de quem é a Idempotency-Key
+ *   (conta + chave, ou conta + pessoa — Tenancy\Support\TenantIdempotencyScope);
  * - o comando `api-keys:process-inactivity` (aviso prévio e desativação por
  *   inatividade — o AGENDAMENTO é do aplicativo, em routes/console.php);
  * - as rotas da API v1 (`/api/v1/…`), desligáveis para a aplicação
@@ -170,6 +173,12 @@ final class AccountsServiceProvider extends ServiceProvider
         // (foundation) define o contrato, este pacote diz quem é o cliente (a
         // chave ou o tenant). Um resolvedor próprio da aplicação prevalece.
         $this->app->bindIf(RateLimitSubjectResolver::class, TenantRateLimitSubject::class);
+
+        // De quem é a Idempotency-Key (o middleware `idempotent` do
+        // foundation): conta + chave de API, ou conta + pessoa na sessão. Sem
+        // nenhum dos dois, a requisição com chave é recusada (falha fechada).
+        // Um resolvedor próprio da aplicação prevalece.
+        $this->app->bindIf(IdempotencyScopeResolver::class, TenantIdempotencyScope::class);
 
         // Respostas HTTP dos fluxos de conta (aceite de convite, troca de
         // conta): o padrão é `bindIf` — a implementação do aplicativo (outro

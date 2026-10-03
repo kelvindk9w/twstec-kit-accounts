@@ -7,6 +7,7 @@ namespace Twstec\Kit\Accounts\Http;
 use Illuminate\Support\Facades\Route;
 use Twstec\Kit\Accounts\ApiKeys\Http\Controllers\ApiKeyController;
 use Twstec\Kit\Accounts\Tenancy\Http\Controllers\ProjectController;
+use Twstec\Kit\Foundation\Idempotency\Middleware\HandleIdempotencyKey;
 
 /**
  * As rotas da API v1 do pacote: chaves de API e projetos.
@@ -40,6 +41,14 @@ final class ApiRoutes
      * Middleware de autenticação que o grupo sempre recebe.
      */
     public const AUTHENTICATION = 'resolve.tenant';
+
+    /**
+     * Campos da criação/rotação de chave que podem voltar na repetição — a
+     * secreta (`secret_key`) nunca.
+     *
+     * @var list<string>
+     */
+    public const KEY_REPLAY_FIELDS = ['data.uuid', 'data.codigo_publico', 'data.public_key'];
 
     /**
      * Registra o grupo da API v1.
@@ -80,7 +89,7 @@ final class ApiRoutes
                 ->name('api-keys.index');
 
             Route::post('api-keys', [ApiKeyController::class, 'store'])
-                ->middleware(['scope:api-keys:create', 'sensitive.token'])
+                ->middleware(['scope:api-keys:create', self::secretIdempotency(), 'sensitive.token'])
                 ->name('api-keys.store');
 
             // Vínculo N:N chave ↔ projetos (lista vazia = chave enxerga a conta toda).
@@ -95,7 +104,7 @@ final class ApiRoutes
                 ->name('api-keys.destroy');
 
             Route::post('api-keys/{uuid}/rotate', [ApiKeyController::class, 'rotate'])
-                ->middleware(['scope:api-keys:rotate', 'sensitive.token'])
+                ->middleware(['scope:api-keys:rotate', self::secretIdempotency(), 'sensitive.token'])
                 ->name('api-keys.rotate');
         });
 
@@ -107,7 +116,7 @@ final class ApiRoutes
             ->name('projects.index');
 
         Route::post('projects', [ProjectController::class, 'store'])
-            ->middleware(['account.key', 'scope:projects:create'])
+            ->middleware(['account.key', 'scope:projects:create', HandleIdempotencyKey::ALIAS])
             ->name('projects.store');
 
         Route::get('projects/{uuid}', [ProjectController::class, 'show'])
@@ -121,5 +130,14 @@ final class ApiRoutes
         Route::delete('projects/{uuid}', [ProjectController::class, 'destroy'])
             ->middleware('scope:projects:delete')
             ->name('projects.destroy');
+    }
+
+    /**
+     * Idempotência das rotas que exibem a secreta uma vez: sem guardar o
+     * corpo, só os campos de KEY_REPLAY_FIELDS.
+     */
+    private static function secretIdempotency(): string
+    {
+        return HandleIdempotencyKey::using(withhold: true, keep: self::KEY_REPLAY_FIELDS);
     }
 }

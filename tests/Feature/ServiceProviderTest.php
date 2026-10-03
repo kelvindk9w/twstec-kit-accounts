@@ -123,12 +123,12 @@ it('registra o comando de inatividade, que funciona sem nada do aplicativo', fun
 it('registra as rotas /api/v1 com os nomes, a ordem e o middleware de rota de sempre', function (): void {
     expect(accountsApiRoutes())->toBe([
         'GET|HEAD api/v1/api-keys api.v1.api-keys.index => api,resolve.tenant,account.key,scope:api-keys:read',
-        'POST api/v1/api-keys api.v1.api-keys.store => api,resolve.tenant,account.key,scope:api-keys:create,sensitive.token',
+        'POST api/v1/api-keys api.v1.api-keys.store => api,resolve.tenant,account.key,scope:api-keys:create,idempotent:optional,withhold,keep=data.uuid|data.codigo_publico|data.public_key,sensitive.token',
         'PUT api/v1/api-keys/{uuid}/projects api.v1.api-keys.projects.sync => api,resolve.tenant,account.key,scope:api-keys:assign',
         'DELETE api/v1/api-keys/{uuid} api.v1.api-keys.destroy => api,resolve.tenant,account.key:self,scope:api-keys:revoke',
-        'POST api/v1/api-keys/{uuid}/rotate api.v1.api-keys.rotate => api,resolve.tenant,account.key:self,scope:api-keys:rotate,sensitive.token',
+        'POST api/v1/api-keys/{uuid}/rotate api.v1.api-keys.rotate => api,resolve.tenant,account.key:self,scope:api-keys:rotate,idempotent:optional,withhold,keep=data.uuid|data.codigo_publico|data.public_key,sensitive.token',
         'GET|HEAD api/v1/projects api.v1.projects.index => api,resolve.tenant,scope:projects:read',
-        'POST api/v1/projects api.v1.projects.store => api,resolve.tenant,account.key,scope:projects:create',
+        'POST api/v1/projects api.v1.projects.store => api,resolve.tenant,account.key,scope:projects:create,idempotent',
         'GET|HEAD api/v1/projects/{uuid} api.v1.projects.show => api,resolve.tenant,scope:projects:read',
         'PUT api/v1/projects/{uuid} api.v1.projects.update => api,resolve.tenant,scope:projects:update',
         'DELETE api/v1/projects/{uuid} api.v1.projects.destroy => api,resolve.tenant,scope:projects:delete',

@@ -59,7 +59,8 @@ starter Livewire tem as telas; outro front reaproveita as Actions.
 | `ApiKeys\Http`, `Tenancy\Http` | Controllers, Form Requests e Resources da API v1; middlewares `EnsureApiKeyScope` (`scope`) e `EnsureAccountWideApiKey` (`account.key`) |
 | `Tenancy\Middleware\ResolveTenant` | `resolve.tenant`: autentica o par de chaves, recusa chave inutilizável e conta de dono inativo ou com e-mail não confirmado, limita as falhas por chave e por IP, define a CONTA da chave como conta atual e vincula o request log a ela |
 | `Tenancy` | `TenantContext` e os helpers `tenant()` (a conta) / `tenantKey()`, `Project` (da conta) com o recorte `visibleToApiKey`, `ProjectService` (o CRUD único do painel e da API, na conta atual), `AccountOverviewQuery` (os números do painel do cliente, da conta atual) |
-| `Http\ApiRoutes` | As rotas `/api/v1/api-keys…` e `/api/v1/projects…` |
+| `Http\ApiRoutes` | As rotas `/api/v1/api-keys…` e `/api/v1/projects…`; os `POST` aceitam `Idempotency-Key` (a criação e a rotação de chave sem guardar a secreta) |
+| `Tenancy\Support\TenantIdempotencyScope` | De quem é a `Idempotency-Key` (o middleware `idempotent` do foundation): conta + chave de API na API, conta + pessoa na sessão; sem nenhum dos dois, recusa |
 
 ## Instalação
 
@@ -159,6 +160,9 @@ Nenhuma proteção depende de o aplicativo lembrar de chamar algo:
 - **Limite de falhas de autenticação** por chave pública + IP e um teto por
   IP, dentro do próprio `ResolveTenant` (`ApiRateLimit`, do foundation), antes
   de qualquer consulta.
+- **Escopo da idempotência:** o `TenantIdempotencyScope` registrado como
+  `IdempotencyScopeResolver` (um resolvedor do aplicativo vence). Ver
+  [docs/api.md](https://github.com/kelvindk9w/tws-laravel-starter-kit/blob/desenvolvimento/docs/api.md#idempotência-idempotency-key).
 - **Envelope de erro da API** (`{"error": {"code", "message",
   "correlation_id"}}`) para tudo em `api/*`, sem stack trace, classe ou
   caminho de servidor — nem com `APP_DEBUG=true` (o `ApiErrorRenderer` do
