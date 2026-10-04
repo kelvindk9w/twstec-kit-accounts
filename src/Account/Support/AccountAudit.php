@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Twstec\Kit\Accounts\Account\Support;
 
+use BackedEnum;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
 use Twstec\Kit\Accounts\Account\Enums\AccountAuditEvent;
@@ -34,6 +35,9 @@ use Twstec\Kit\Foundation\Logging\CorrelationId;
  *   exceção sair para a tela. Serve também às recusas das telas de chaves de
  *   API e de projetos (ApiKeyAttempt, ProjectAttempt — ver
  *   AccountResourceGuard) e da API v1 por chave (contexto `api`).
+ *
+ * Outro pacote do kit que age DENTRO de uma conta (os webhooks) grava pela
+ * mesma porta, com o próprio enum de ações (qualquer enum com valor em texto).
  */
 final class AccountAudit
 {
@@ -43,7 +47,7 @@ final class AccountAudit
      * @param  array<string, array{before?: mixed, after?: mixed}>  $changes
      */
     public function record(
-        AccountAuditEvent $event,
+        AccountAuditEvent|BackedEnum $event,
         Account|string|null $account,
         ?AuthUser $actor,
         ?Model $subject = null,
@@ -52,7 +56,7 @@ final class AccountAudit
         ?string $subjectUuid = null,
     ): void {
         $this->trail->within($this->scope($actor), fn () => $this->trail->record(
-            $event->value,
+            (string) $event->value,
             $subject,
             $changes,
             $subjectType,
@@ -62,7 +66,7 @@ final class AccountAudit
     }
 
     public function denied(
-        AccountAuditEvent|ApiKeyAttempt|ProjectAttempt $event,
+        AccountAuditEvent|ApiKeyAttempt|ProjectAttempt|BackedEnum $event,
         Account|string|null $account,
         ?AuthUser $actor,
         string $reason,
@@ -72,7 +76,7 @@ final class AccountAudit
         ?AuditContext $context = null,
     ): void {
         $this->trail->within($this->scope($actor, $context), fn () => $this->trail->denied(
-            $event->value,
+            (string) $event->value,
             $subject,
             $reason,
             $subjectType,

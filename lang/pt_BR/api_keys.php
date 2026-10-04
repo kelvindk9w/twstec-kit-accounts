@@ -18,6 +18,7 @@ return [
     'scopes' => [
         'denied' => 'Esta chave de API não tem permissão para o escopo ":scope".',
         'invalid_format' => 'Cada escopo deve estar no formato "recurso:acao" (ex.: customers:read, orders:create, invoices:*).',
+        'exceeded' => 'A chave de API autenticada não pode conceder escopos que ela mesma não tem: :scopes.',
     ],
 
     // Operações do motor de chaves.
@@ -36,6 +37,7 @@ return [
         'deleted' => 'Projeto removido com sucesso.',
         'invalid' => 'Um ou mais projetos informados não existem na sua conta.',
         'account_key_required' => 'Esta chave está vinculada a projetos e só age sobre eles. Use uma chave sem vínculo (conta toda) para criar projetos e gerenciar chaves.',
+        'exceeded' => 'A chave de API autenticada é restrita a projetos: a chave criada ou alterada precisa ficar dentro desses projetos.',
     ],
 
 ];

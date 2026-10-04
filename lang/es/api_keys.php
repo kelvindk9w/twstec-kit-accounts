@@ -17,6 +17,7 @@ return [
     'scopes' => [
         'denied' => 'Esta clave de API no tiene permiso para el alcance ":scope".',
         'invalid_format' => 'Cada alcance debe estar en el formato "recurso:accion" (ej.: customers:read, orders:create, invoices:*).',
+        'exceeded' => 'La clave de API autenticada no puede conceder alcances que ella misma no tiene: :scopes.',
     ],
 
     // Operaciones del motor de claves.
@@ -35,6 +36,7 @@ return [
         'deleted' => 'Proyecto eliminado con éxito.',
         'invalid' => 'Uno o más proyectos informados no existen en tu cuenta.',
         'account_key_required' => 'Esta clave está vinculada a proyectos y solo actúa sobre ellos. Usa una clave sin vínculo (toda la cuenta) para crear proyectos y gestionar claves.',
+        'exceeded' => 'La clave de API autenticada está restringida a proyectos: la clave creada o modificada debe quedarse dentro de esos proyectos.',
     ],
 
 ];

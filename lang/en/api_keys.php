@@ -18,6 +18,7 @@ return [
     'scopes' => [
         'denied' => 'This API key is not allowed for the ":scope" scope.',
         'invalid_format' => 'Each scope must be in the "resource:action" format (e.g.: customers:read, orders:create, invoices:*).',
+        'exceeded' => 'The authenticated API key cannot grant scopes it does not have: :scopes.',
     ],
 
     // Key engine operations.
@@ -36,6 +37,7 @@ return [
         'deleted' => 'Project removed successfully.',
         'invalid' => 'One or more of the given projects do not exist in your account.',
         'account_key_required' => 'This key is linked to projects and only acts on them. Use an unlinked (whole account) key to create projects and manage keys.',
+        'exceeded' => 'The authenticated API key is restricted to projects: the key being created or changed must stay within those projects.',
     ],
 
 ];

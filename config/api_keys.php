@@ -76,8 +76,10 @@ return [
         'per_page' => (int) env('API_KEYS_PER_PAGE', 15),
     ],
 
-    // Scopes padrão na criação: TUDO habilitado. O usuário pode
-    // restringir por recurso:ação (menor privilégio) informando `scopes`.
+    // Scopes padrão na criação PELO PAINEL (sessão): TUDO habilitado. O
+    // usuário pode restringir por recurso:ação (menor privilégio). Pela API
+    // v1, o padrão é outro: sem `scopes`, a chave nova herda os escopos da
+    // chave autenticada — nunca mais ampla que ela (ver docs/api.md).
     'default_scopes' => ['*:*'],
 
     // Catálogo de scopes oferecidos na UI do painel (seleção granular).

@@ -13,8 +13,9 @@ namespace Twstec\Kit\Accounts\ApiKeys\Enums;
  *   e projeto de fora da conta no vínculo (erro de validação). A ação é a que
  *   foi tentada (`api_key.created`, `api_key.rotated`...).
  * - Pela API v1 (contexto `api`), a chave AUTENTICADA que tenta além do que
- *   pode: escopo que ela não tem e operação de conta por chave vinculada a
- *   projetos (403). O alvo é a própria chave.
+ *   pode: escopo que ela não tem, operação de conta por chave vinculada a
+ *   projetos e criar, rotacionar ou editar chave mais ampla que ela mesma
+ *   (`api_key.privilege_exceeded`) (403). O alvo é a própria chave.
  *
  * FORA da trilha, de propósito: os 401 (credencial ausente ou inválida — não
  * há quem registrar) e os 404 da API v1 (recurso de outra conta ou
@@ -31,4 +32,5 @@ enum ApiKeyAttempt: string
 
     case ScopeDenied = 'api_key.scope_denied';
     case AccountKeyRequired = 'api_key.account_key_required';
+    case PrivilegeExceeded = 'api_key.privilege_exceeded';
 }

@@ -10,7 +10,9 @@ use Illuminate\Foundation\Http\FormRequest;
  * Criação de chave de API. Sempre combinado com os middlewares
  * resolve.tenant + scope:api-keys:create + sensitive.token (rota).
  *
- * - scopes omitido = padrão da config (tudo habilitado, ['*:*']).
+ * - scopes omitido = os MESMOS escopos da chave autenticada (nunca mais
+ *   amplos — ver ApiKeyService); pedir escopo que ela não tem = 403
+ *   `api_key_scope_exceeded`.
  * - expires_at omitido = sem validade (o sistema NUNCA impõe prazo).
  */
 final class StoreApiKeyRequest extends FormRequest

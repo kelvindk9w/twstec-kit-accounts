@@ -43,6 +43,10 @@ const ACCOUNTS_ALLOWED_ROOTS = [
     'Twstec\\Kit\\Foundation\\',
     'Illuminate\\',
     'Symfony\\Component\\HttpFoundation\\',
+    // As exceções HTTP (as mesmas que o abort() do Laravel lança): a recusa
+    // com código próprio no envelope da API precisa estender HttpException —
+    // o Laravel troca a AuthorizationException por outra antes de renderizar.
+    'Symfony\\Component\\HttpKernel\\Exception\\',
     'Carbon\\',
 ];
 
