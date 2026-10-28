@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
@@ -277,6 +278,84 @@ it('reenviar gera link novo (o antigo morre) e renova a validade; revogar mata o
     // Revogado não volta por reenvio.
     expect(fn () => Accounts::actingAs($e['conta'], fn () => app(ResendInvitation::class)->handle($e['dono'], $convite->uuid), $e['dono']))
         ->toThrow(ValidationException::class);
+});
+
+it('REVOGAR na corrida com o ACEITE: se a pessoa aceitou no meio, nada é revogado e a recusa diz o estado novo', function (): void {
+    $e = empresaParaConvites();
+    ['convite' => $convite] = convidar($e['conta'], $e['dono'], 'corrida@example.com');
+    $convidada = User::fixture(['email' => 'corrida@example.com', 'email_verified_at' => now()]);
+
+    // A corrida: logo depois de a revogação LER o convite (pendente), a
+    // pessoa aceita — o UPDATE condicional do aceite passa primeiro.
+    $aceitou = false;
+    DB::listen(function (QueryExecuted $query) use (&$aceitou, $convite, $convidada): void {
+        if ($aceitou || ! str_starts_with(strtolower(ltrim($query->sql)), 'select') || ! str_contains($query->sql, 'account_invitations')) {
+            return;
+        }
+
+        $aceitou = true;
+        InvitationTokens::consume($convite, $convidada->getKey());
+    });
+
+    $erro = null;
+
+    try {
+        Accounts::actingAs($e['conta'], fn () => app(RevokeInvitation::class)->handle($e['dono'], $convite->uuid), $e['dono']);
+    } catch (ValidationException $exception) {
+        $erro = $exception;
+    }
+
+    $linha = DB::table('account_invitations')->where('id', $convite->id)->first();
+
+    expect($aceitou)->toBeTrue()
+        ->and($erro)->toBeInstanceOf(ValidationException::class)
+        ->and($erro?->errors()['invitation'][0] ?? null)->toBe(__('accounts.invitations.not_revocable_now', ['status' => InvitationStatus::Accepted->label()]))
+        ->and($linha->revoked_at)->toBeNull()
+        ->and($linha->accepted_at)->not->toBeNull()
+        ->and(AuditEvent::query()->where('action', 'account.invitation_revoked')->where('outcome', 'success')->count())->toBe(0)
+        ->and(AuditEvent::query()->where('action', 'account.invitation_revoked')->where('outcome', 'denied')->count())->toBe(1);
+});
+
+it('REENVIAR um EXPIRADO é convidar de novo: recusa quem já é membro, outro pendente para o e-mail e o limite de pendentes', function (): void {
+    $e = empresaParaConvites();
+    $reenviar = fn (AccountInvitation $convite) => Accounts::actingAs($e['conta'], fn () => app(ResendInvitation::class)->handle($e['dono'], $convite->uuid), $e['dono']);
+    $mensagem = function (Closure $acao): ?string {
+        try {
+            $acao();
+        } catch (ValidationException $exception) {
+            return $exception->errors()['invitation'][0] ?? null;
+        }
+
+        return null;
+    };
+
+    ['convite' => $virouMembro] = convidar($e['conta'], $e['dono'], 'virou.membro@example.com');
+    ['convite' => $temOutro] = convidar($e['conta'], $e['dono'], 'tem.outro@example.com');
+    ['convite' => $noLimite] = convidar($e['conta'], $e['dono'], 'no.limite@example.com');
+    $this->travel((int) config('accounts.invitations.expires_hours', 168) + 1)->hours();
+
+    // Enquanto o convite expirava: a pessoa entrou por outro caminho, e um
+    // convite novo saiu para o outro e-mail.
+    app(AccountService::class)->addMember($e['conta'], User::fixture(['email' => 'virou.membro@example.com']), AccountRole::Member);
+    convidar($e['conta'], $e['dono'], 'tem.outro@example.com');
+
+    expect($mensagem(fn () => $reenviar($virouMembro)))->toBe(__('accounts.invitations.already_member'))
+        ->and($mensagem(fn () => $reenviar($temOutro)))->toBe(__('accounts.invitations.already_pending'));
+
+    // O limite: reviver o expirado passaria do teto; o pendente reenviado
+    // já conta nele e continua podendo ser reenviado.
+    config()->set('accounts.invitations.max_pending', 1);
+    expect($mensagem(fn () => $reenviar($noLimite)))->toBe(__('accounts.invitations.too_many_pending', ['max' => 1]));
+
+    $pendente = AccountInvitation::query()->withoutGlobalScopes()->where('email', 'tem.outro@example.com')->latest('id')->first();
+    expect($mensagem(fn () => $reenviar($pendente)))->toBeNull();
+
+    foreach ([$virouMembro, $temOutro, $noLimite] as $convite) {
+        expect($convite->fresh()->send_count)->toBe(1)
+            ->and($convite->fresh()->status())->toBe(InvitationStatus::Expired);
+    }
+
+    expect(AuditEvent::query()->where('action', 'account.invitation_resent')->where('outcome', 'denied')->count())->toBe(3);
 });
 
 it('SEM ENUMERAÇÃO: convidar e-mail com conta e sem conta dá a mesma resposta e o mesmo e-mail', function (): void {

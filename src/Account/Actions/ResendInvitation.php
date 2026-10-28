@@ -21,6 +21,15 @@ use Twstec\Kit\Auth\Contracts\AuthUser;
  * o hash é trocado) e renova a validade. Conta no mesmo intervalo dos
  * convites novos.
  *
+ * Reenviar um EXPIRADO é criar um convite de novo: valem as mesmas recusas
+ * da criação (InviteMember::refusalFor) — a pessoa já é membro, já existe
+ * outro convite pendente para o e-mail, a conta chegou ao limite de
+ * pendentes. O pendente reenviado já conta no limite.
+ *
+ * A troca do token é um UPDATE condicional (só se o convite continua sem
+ * aceite, recusa ou revogação): se ele foi aceito ou recusado no meio, nada
+ * muda e a recusa diz o estado novo.
+ *
  * Quem pode: dono e admin. Convite de outra conta = 404 (o escopo da conta).
  *
  * Trilha: `account.invitation_resent`.
@@ -48,23 +57,48 @@ final class ResendInvitation
             $this->reject(AccountAuditEvent::InvitationResent, $account, $actor, 'invitation', InvitationThrottle::message($espera), $invitation);
         }
 
+        $revive = $invitation->status() === InvitationStatus::Expired;
+
+        if (($motivo = InviteMember::refusalFor($account, $invitation->email, $invitation, becomesPending: $revive)) !== null) {
+            $this->reject(AccountAuditEvent::InvitationResent, $account, $actor, 'invitation', $motivo, $invitation);
+        }
+
         $token = InvitationTokens::generate();
+        $antes = $invitation->expires_at->toIso8601String();
+        $envios = $invitation->send_count;
 
-        DB::transaction(function () use ($account, $actor, $invitation, $token): void {
-            $antes = $invitation->expires_at->toIso8601String();
+        $trocou = DB::transaction(function () use ($account, $actor, $invitation, $token, $antes, $envios): bool {
+            $trocou = AccountInvitation::query()
+                ->whereKey($invitation->getKey())
+                ->whereNull('accepted_at')
+                ->whereNull('revoked_at')
+                ->whereNull('declined_at')
+                ->update([
+                    'token_hash' => $token['hash'],
+                    'expires_at' => InviteMember::expiresAt(),
+                    'last_sent_at' => now(),
+                    'send_count' => $envios + 1,
+                    'updated_at' => now(),
+                ]) === 1;
 
-            $invitation->forceFill([
-                'token_hash' => $token['hash'],
-                'expires_at' => InviteMember::expiresAt(),
-                'last_sent_at' => now(),
-                'send_count' => $invitation->send_count + 1,
-            ])->save();
+            if (! $trocou) {
+                return false;
+            }
+
+            $invitation->refresh();
 
             $this->audit->record(AccountAuditEvent::InvitationResent, $account, $actor, $invitation, [
                 'expires_at' => ['before' => $antes, 'after' => $invitation->expires_at->toIso8601String()],
-                'send_count' => ['before' => $invitation->send_count - 1, 'after' => $invitation->send_count],
+                'send_count' => ['before' => $envios, 'after' => $invitation->send_count],
             ]);
+
+            return true;
         });
+
+        if (! $trocou) {
+            $invitation->refresh();
+            $this->reject(AccountAuditEvent::InvitationResent, $account, $actor, 'invitation', __('accounts.invitations.not_resendable_now', ['status' => $invitation->status()->label()]), $invitation);
+        }
 
         InviteMember::send($account, $actor, $invitation, $token['plain']);
 

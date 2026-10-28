@@ -16,12 +16,15 @@ use Twstec\Kit\Foundation\Http\Exceptions\Contracts\ProvidesApiErrorCode;
  * |-----------------------------|---------------------------------------------------------------|
  * | `api_key_scope_exceeded`    | um escopo pedido (ou o da chave alvo) não cabe nos da chave autenticada |
  * | `api_key_projects_exceeded` | a chave autenticada é restrita a projetos e o pedido sai deles |
+ * | `api_key_expiry_exceeded`   | a chave autenticada tem validade e a criada (ou rotacionada) valeria além dela, ou sem validade |
  */
 final class ApiKeyPrivilegeExceededException extends HttpException implements ProvidesApiErrorCode
 {
     public const SCOPE = 'api_key_scope_exceeded';
 
     public const PROJECTS = 'api_key_projects_exceeded';
+
+    public const EXPIRY = 'api_key_expiry_exceeded';
 
     private function __construct(private readonly string $errorCode, string $message)
     {
@@ -39,6 +42,11 @@ final class ApiKeyPrivilegeExceededException extends HttpException implements Pr
     public static function projects(): self
     {
         return new self(self::PROJECTS, (string) __('api_keys.projects.exceeded'));
+    }
+
+    public static function expiry(): self
+    {
+        return new self(self::EXPIRY, (string) __('api_keys.expiry.exceeded'));
     }
 
     public function apiErrorCode(): string

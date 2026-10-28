@@ -20,6 +20,11 @@ use Twstec\Kit\Auth\Contracts\AuthUser;
  *
  * Quem pode: dono e admin. Convite de outra conta = 404.
  *
+ * A revogação é um UPDATE condicional (só se o convite continua sem aceite,
+ * recusa ou revogação — como o aceite, InvitationTokens::consume): se a
+ * pessoa aceitou (ou recusou) no meio, nada muda e a recusa diz o estado
+ * novo, em vez de anunciar uma revogação que não valeu.
+ *
  * Trilha: `account.invitation_revoked`.
  */
 final class RevokeInvitation
@@ -55,13 +60,33 @@ final class RevokeInvitation
             $this->reject(AccountAuditEvent::InvitationRevoked, $account, $actor, 'invitation', __('accounts.invitations.not_revocable'), $invitation);
         }
 
-        DB::transaction(function () use ($account, $actor, $invitation): void {
-            $invitation->forceFill(['revoked_at' => now()])->save();
+        $antes = $invitation->status();
+
+        $revogou = DB::transaction(function () use ($account, $actor, $invitation, $antes): bool {
+            $revogou = AccountInvitation::query()
+                ->whereKey($invitation->getKey())
+                ->whereNull('accepted_at')
+                ->whereNull('revoked_at')
+                ->whereNull('declined_at')
+                ->update(['revoked_at' => now(), 'updated_at' => now()]) === 1;
+
+            if (! $revogou) {
+                return false;
+            }
+
+            $invitation->refresh();
 
             $this->audit->record(AccountAuditEvent::InvitationRevoked, $account, $actor, $invitation, [
-                'status' => ['before' => InvitationStatus::Pending->value, 'after' => InvitationStatus::Revoked->value],
+                'status' => ['before' => $antes->value, 'after' => InvitationStatus::Revoked->value],
             ]);
+
+            return true;
         });
+
+        if (! $revogou) {
+            $invitation->refresh();
+            $this->reject(AccountAuditEvent::InvitationRevoked, $account, $actor, 'invitation', __('accounts.invitations.not_revocable_now', ['status' => $invitation->status()->label()]), $invitation);
+        }
 
         return $invitation;
     }

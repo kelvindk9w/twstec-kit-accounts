@@ -40,4 +40,9 @@ return [
         'exceeded' => 'A chave de API autenticada é restrita a projetos: a chave criada ou alterada precisa ficar dentro desses projetos.',
     ],
 
+    // Validade (sem escalada pela API: a chave criada não dura mais que a autenticada).
+    'expiry' => [
+        'exceeded' => 'A chave de API autenticada tem validade: a chave criada ou rotacionada não pode valer além dela (nem ficar sem validade).',
+    ],
+
 ];

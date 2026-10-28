@@ -40,4 +40,9 @@ return [
         'exceeded' => 'The authenticated API key is restricted to projects: the key being created or changed must stay within those projects.',
     ],
 
+    // Expiry (no escalation through the API: the new key does not outlive the authenticated one).
+    'expiry' => [
+        'exceeded' => 'The authenticated API key has an expiry date: the key being created or rotated cannot outlive it (nor have no expiry).',
+    ],
+
 ];

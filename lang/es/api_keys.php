@@ -39,4 +39,9 @@ return [
         'exceeded' => 'La clave de API autenticada está restringida a proyectos: la clave creada o modificada debe quedarse dentro de esos proyectos.',
     ],
 
+    // Vencimiento (sin escalada por la API: la clave creada no dura más que la autenticada).
+    'expiry' => [
+        'exceeded' => 'La clave de API autenticada tiene vencimiento: la clave creada o rotada no puede valer más allá de ella (ni quedar sin vencimiento).',
+    ],
+
 ];

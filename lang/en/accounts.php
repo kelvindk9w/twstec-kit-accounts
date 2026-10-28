@@ -94,6 +94,8 @@ return [
         'throttled' => 'Too many invitations in a short time. Try again in :minutes min.',
         'not_resendable' => 'Only a pending or expired invitation can be resent.',
         'not_revocable' => 'Only a pending or expired invitation can be revoked.',
+        'not_resendable_now' => 'The invitation can no longer be resent: it has just changed to ":status". Nothing was changed.',
+        'not_revocable_now' => 'The invitation can no longer be revoked: it has just changed to ":status". Nothing was changed.',
         'accepted' => 'Invitation accepted. Welcome to the :account account.',
         'declined' => 'Invitation declined.',
         'fields' => [

@@ -13,7 +13,9 @@ use Illuminate\Foundation\Http\FormRequest;
  * - scopes omitido = os MESMOS escopos da chave autenticada (nunca mais
  *   amplos — ver ApiKeyService); pedir escopo que ela não tem = 403
  *   `api_key_scope_exceeded`.
- * - expires_at omitido = sem validade (o sistema NUNCA impõe prazo).
+ * - expires_at omitido = sem validade (o sistema NUNCA impõe prazo) — salvo
+ *   quando a chave autenticada tem validade: aí a nova herda a dela, e pedir
+ *   validade além dela = 403 `api_key_expiry_exceeded` (ver ApiKeyService).
  */
 final class StoreApiKeyRequest extends FormRequest
 {

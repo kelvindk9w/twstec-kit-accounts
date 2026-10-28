@@ -94,6 +94,8 @@ return [
         'throttled' => 'Muitos convites em pouco tempo. Tente de novo em :minutes min.',
         'not_resendable' => 'Só um convite pendente ou expirado pode ser reenviado.',
         'not_revocable' => 'Só um convite pendente ou expirado pode ser revogado.',
+        'not_resendable_now' => 'O convite não pode mais ser reenviado: ele acabou de mudar para ":status". Nada foi alterado.',
+        'not_revocable_now' => 'O convite não pode mais ser revogado: ele acabou de mudar para ":status". Nada foi alterado.',
         'accepted' => 'Convite aceito. Bem-vindo à conta :account.',
         'declined' => 'Convite recusado.',
         'fields' => [

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Twstec\Kit\Accounts\ApiKeys\Services;
 
+use Carbon\CarbonInterface;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 use Twstec\Kit\Accounts\Account\Support\AccountAudit;
@@ -34,8 +36,11 @@ use Twstec\Kit\Foundation\Identifiers\UuidColumn;
  *   rotacionada ou editada nunca é mais ampla que ela: os escopos têm de
  *   caber nos da chave autenticada (com curinga: `orders:*` contém
  *   `orders:create`; `*:*` só quem tem `*:*`) e, se ela for restrita a
- *   projetos, os projetos também. Na criação, `scopes` omitido HERDA os
- *   escopos da chave autenticada (nunca `*:*` por omissão). Recusa: 403
+ *   projetos, os projetos também; e, se ela tiver VALIDADE (`expires_at`,
+ *   ou o fim da carência de uma rotação), a chave criada ou rotacionada não
+ *   vale além dela. Na criação, `scopes` omitido HERDA os escopos da chave
+ *   autenticada (nunca `*:*` por omissão) e `expires_at` omitido herda a
+ *   validade dela (nunca "sem validade" por omissão). Recusa: 403
  *   (ApiKeyPrivilegeExceededException, código estável no envelope) e a
  *   tentativa na trilha (`api_key.privilege_exceeded`, contexto `api`). A
  *   regra mora AQUI, não no controller: todo caminho pela API passa por ela.
@@ -74,6 +79,15 @@ final class ApiKeyService
             }
 
             $this->assertProjectsWithin($grantor, $projectIds, $grantor->isRestrictedToProjects());
+
+            // Chave autenticada com validade: a nova herda a validade dela
+            // quando o pedido não traz uma, e nunca vale além dela.
+            $deadline = $this->deadlineOf($grantor);
+
+            if ($deadline !== null) {
+                $data['expires_at'] ??= $deadline->toIso8601String();
+                $this->assertExpiryWithin($deadline, Carbon::parse($data['expires_at']));
+            }
         }
 
         $pair = $this->generator->generatePair();
@@ -124,6 +138,15 @@ final class ApiKeyService
         if ($grantor !== null) {
             $this->assertScopesWithin($grantor, $current->scopes);
             $this->assertProjectsWithin($grantor, $this->keyProjectIds($current), $current->isRestrictedToProjects());
+
+            // A nova herda a validade da antiga: rotacionar chave sem validade
+            // (ou de validade maior) com uma chave que vence seria ganhar
+            // uma credencial que dura mais que a autenticada.
+            $deadline = $this->deadlineOf($grantor);
+
+            if ($deadline !== null) {
+                $this->assertExpiryWithin($deadline, $current->expires_at);
+            }
         }
 
         $pair = $this->generator->generatePair();
@@ -242,6 +265,33 @@ final class ApiKeyService
 
         if ($exceeding !== []) {
             $this->refuse(ApiKeyPrivilegeExceededException::scopes($exceeding));
+        }
+    }
+
+    /**
+     * Até quando a chave vale: a validade (`expires_at`) ou, se for antes, o
+     * fim da carência da rotação (`grace_ends_at`). Null = sem prazo.
+     */
+    private function deadlineOf(ApiKey $apiKey): ?CarbonInterface
+    {
+        $deadlines = array_filter([$apiKey->expires_at, $apiKey->grace_ends_at]);
+
+        if ($deadlines === []) {
+            return null;
+        }
+
+        return array_reduce($deadlines, static fn (?CarbonInterface $min, CarbonInterface $date): CarbonInterface => $min === null || $date->lessThan($min) ? $date : $min);
+    }
+
+    /**
+     * A chave alvo não vale além da autenticada (sem validade = além).
+     *
+     * @throws ApiKeyPrivilegeExceededException
+     */
+    private function assertExpiryWithin(CarbonInterface $deadline, ?CarbonInterface $expiresAt): void
+    {
+        if ($expiresAt === null || $expiresAt->greaterThan($deadline)) {
+            $this->refuse(ApiKeyPrivilegeExceededException::expiry());
         }
     }
 

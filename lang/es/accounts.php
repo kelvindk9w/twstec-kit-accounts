@@ -94,6 +94,8 @@ return [
         'throttled' => 'Demasiadas invitaciones en poco tiempo. Intente de nuevo en :minutes min.',
         'not_resendable' => 'Solo una invitación pendiente o vencida puede reenviarse.',
         'not_revocable' => 'Solo una invitación pendiente o vencida puede revocarse.',
+        'not_resendable_now' => 'La invitación ya no puede reenviarse: acaba de cambiar a ":status". No se cambió nada.',
+        'not_revocable_now' => 'La invitación ya no puede revocarse: acaba de cambiar a ":status". No se cambió nada.',
         'accepted' => 'Invitación aceptada. Bienvenido a la cuenta :account.',
         'declined' => 'Invitación rechazada.',
         'fields' => [

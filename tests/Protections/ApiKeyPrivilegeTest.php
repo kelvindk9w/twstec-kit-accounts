@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Twstec\Kit\Accounts\Accounts;
 use Twstec\Kit\Accounts\ApiKeys\Exceptions\ApiKeyPrivilegeExceededException;
@@ -122,6 +123,50 @@ it('ROTAÇÃO: rotacionar chave mais ampla que a autenticada é 403 (a secreta n
     expect(Accounts::asSystem('teste', fn () => $ampla->fresh()->rotated_to_id))->toBeNull();
 
     $this->postJson("/api/v1/api-keys/{$menor->uuid}/rotate", [], $headers())->assertCreated();
+    $this->postJson("/api/v1/api-keys/{$key->uuid}/rotate", [], $headers())->assertCreated();
+});
+
+it('VALIDADE: chave autenticada que vence só cria chave que vença até a mesma data; omitida, herda a dela', function (): void {
+    $owner = $this->owner();
+    $vence = now()->addDays(10)->startOfSecond();
+    $headers = fn (): array => privilegeHeaders($this, $owner, ['api-keys:create', 'orders:read'], ['expires_at' => $vence->toIso8601String()]);
+
+    // Sem validade no pedido: herda a da autenticada (nunca "sem validade").
+    $herdada = $this->postJson('/api/v1/api-keys', ['name' => 'Herda a validade'], $headers())->assertCreated();
+    expect($herdada->json('data.expires_at'))->not->toBeNull()
+        ->and(CarbonImmutable::parse($herdada->json('data.expires_at'))->equalTo($vence))->toBeTrue();
+
+    // Antes da autenticada: pode.
+    $this->postJson('/api/v1/api-keys', ['name' => 'Menor', 'expires_at' => $vence->subDay()->toIso8601String()], $headers())
+        ->assertCreated();
+
+    // Depois da autenticada: 403 com código estável, nada criado, na trilha.
+    $headersMaior = $headers();
+    $count = privilegeKeys();
+    $this->postJson('/api/v1/api-keys', ['name' => 'Maior', 'expires_at' => $vence->addDay()->toIso8601String()], $headersMaior)
+        ->assertForbidden()
+        ->assertJsonPath('error.code', 'api_key_expiry_exceeded')
+        ->assertJsonMissingPath('secret_key');
+
+    expect(privilegeKeys())->toBe($count)
+        ->and(AuditEvent::query()->where('action', 'api_key.privilege_exceeded')->count())->toBe(1);
+});
+
+it('VALIDADE na ROTAÇÃO: chave que vence não rotaciona chave sem validade (a nova duraria mais que ela)', function (): void {
+    $owner = $this->owner();
+    ['api_key' => $eterna] = $this->keyFor($owner, ['scopes' => ['orders:read']]);
+    ['api_key' => $curta] = $this->keyFor($owner, ['scopes' => ['orders:read'], 'expires_at' => now()->addDays(5)->toIso8601String()]);
+    ['api_key' => $key, 'secret_key' => $secret] = $this->keyFor($owner, ['scopes' => ['api-keys:rotate', 'orders:*'], 'expires_at' => now()->addDays(10)->toIso8601String()]);
+    $headers = fn (): array => [...$this->credentials($key, $secret), 'X-Sensitive-Action-Token' => privilegeToken($owner)];
+
+    $this->postJson("/api/v1/api-keys/{$eterna->uuid}/rotate", [], $headers())
+        ->assertForbidden()
+        ->assertJsonPath('error.code', 'api_key_expiry_exceeded')
+        ->assertJsonMissingPath('secret_key');
+
+    expect(Accounts::asSystem('teste', fn () => $eterna->fresh()->rotated_to_id))->toBeNull();
+
+    $this->postJson("/api/v1/api-keys/{$curta->uuid}/rotate", [], $headers())->assertCreated();
     $this->postJson("/api/v1/api-keys/{$key->uuid}/rotate", [], $headers())->assertCreated();
 });
 

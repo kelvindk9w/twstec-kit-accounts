@@ -70,18 +70,8 @@ final class InviteMember
             $this->reject(AccountAuditEvent::InvitationCreated, $account, $actor, 'email', InvitationThrottle::message($espera), subjectType: 'account_invitation');
         }
 
-        if ($this->isMember($account, $email)) {
-            $this->reject(AccountAuditEvent::InvitationCreated, $account, $actor, 'email', __('accounts.invitations.already_member'), subjectType: 'account_invitation');
-        }
-
-        if (AccountInvitation::query()->pending()->where('email', $email)->exists()) {
-            $this->reject(AccountAuditEvent::InvitationCreated, $account, $actor, 'email', __('accounts.invitations.already_pending'), subjectType: 'account_invitation');
-        }
-
-        $limite = (int) config('accounts.invitations.max_pending', 20);
-
-        if (AccountInvitation::query()->pending()->count() >= $limite) {
-            $this->reject(AccountAuditEvent::InvitationCreated, $account, $actor, 'email', __('accounts.invitations.too_many_pending', ['max' => $limite]), subjectType: 'account_invitation');
+        if (($motivo = self::refusalFor($account, $email)) !== null) {
+            $this->reject(AccountAuditEvent::InvitationCreated, $account, $actor, 'email', $motivo, subjectType: 'account_invitation');
         }
 
         $token = InvitationTokens::generate();
@@ -134,9 +124,39 @@ final class InviteMember
         ));
     }
 
-    private function isMember(Account $account, string $email): bool
+    /**
+     * As recusas de DESTINO de um convite na conta atual — valem para o
+     * convite novo e para o reenvio (ResendInvitation), que pode reviver um
+     * convite expirado: a pessoa JÁ É MEMBRO; já existe OUTRO convite
+     * pendente para o e-mail; a conta chegou ao limite de pendentes
+     * (`accounts.invitations.max_pending`). Null = pode convidar.
+     *
+     * @param  AccountInvitation|null  $except  O convite reenviado (não conta como "outro").
+     * @param  bool  $becomesPending  O convite passa a contar no limite (novo, ou expirado que revive).
+     */
+    public static function refusalFor(Account $account, string $email, ?AccountInvitation $except = null, bool $becomesPending = true): ?string
     {
-        return $account->members()->whereRaw('lower(email) = ?', [$email])->exists();
+        $email = AccountInvitation::normalizeEmail($email);
+
+        if ($account->members()->whereRaw('lower(email) = ?', [$email])->exists()) {
+            return __('accounts.invitations.already_member');
+        }
+
+        $pendentes = fn () => AccountInvitation::query()
+            ->pending()
+            ->when($except !== null, fn ($query) => $query->whereKeyNot($except?->getKey()));
+
+        if ($pendentes()->where('email', $email)->exists()) {
+            return __('accounts.invitations.already_pending');
+        }
+
+        $limite = (int) config('accounts.invitations.max_pending', 20);
+
+        if ($becomesPending && $pendentes()->count() >= $limite) {
+            return __('accounts.invitations.too_many_pending', ['max' => $limite]);
+        }
+
+        return null;
     }
 
     protected function audit(): AccountAudit
