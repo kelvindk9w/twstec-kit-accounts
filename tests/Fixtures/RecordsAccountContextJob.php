@@ -11,7 +11,8 @@ use Twstec\Kit\Accounts\Accounts;
 use Twstec\Kit\Accounts\Tenancy\Models\Project;
 
 /**
- * Job de teste: anota em que contexto de conta rodou e o que enxergou.
+ * Job de teste: anota em que contexto de conta rodou e o que enxergou. O
+ * `record()` é o mesmo registro, para os jobs enfileirados como closure.
  */
 final class RecordsAccountContextJob implements ShouldQueue
 {
@@ -23,6 +24,11 @@ final class RecordsAccountContextJob implements ShouldQueue
     public static array $runs = [];
 
     public function handle(): void
+    {
+        self::record();
+    }
+
+    public static function record(): void
     {
         try {
             $projetos = Project::query()->orderBy('name')->pluck('name')->all();
