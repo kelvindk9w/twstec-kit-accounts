@@ -155,8 +155,16 @@ it('não nomeia nada do aplicativo, das camadas de cima nem de tela', function (
     expect($violations)->toBe([]);
 });
 
-it('não tem telas: nenhuma view no pacote', function (): void {
-    expect(is_dir(accountsRoot().'/resources/views'))->toBeFalse();
+it('não tem telas: as únicas views são os corpos dos e-mails do pacote', function (): void {
+    // Corpo de e-mail não é tela: a classe de e-mail do pacote o monta, e o
+    // aplicativo sobrescreve pelo mesmo nome em resources/views
+    // (Foundation\Customization\PackageViews).
+    $views = array_map(
+        fn ($file): string => str_replace('\\', '/', $file->getRelativePathname()),
+        iterator_to_array((new Finder)->files()->in(accountsRoot().'/resources/views')->sortByName(), false),
+    );
+
+    expect($views)->toBe(['mail/messages/account-invitation.blade.php', 'mail/messages/api-key-inactivity-warning.blade.php', 'mail/messages/orphaned-api-keys.blade.php']);
 
     $blade = iterator_to_array((new Finder)->files()->in(accountsRoot().'/src')->name('*.blade.php'), false);
 

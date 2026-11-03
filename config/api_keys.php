@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 // =============================================================================
 // Motor de API Keys + Tenancy — configuração padrão do pacote
-// twstec/kit-accounts. A aplicação pode publicar a própria cópia
-// (`vendor:publish --tag=accounts-config`); as chaves de primeiro nível dela
-// prevalecem.
+// twstec/kit-accounts. O aplicativo só tem config/api_keys.php se mudar algo,
+// com as chaves de primeiro nível que muda — cada uma vence a do pacote
+// inteira; para um valor solto, prefira a variável do .env (ver
+// docs/personalizacao.md).
 //
 // Todos os valores são ajustáveis por .env — NUNCA hardcodar.
 // =============================================================================
@@ -89,8 +90,8 @@ return [
     'scopes_catalog' => [
         'api-keys' => ['read', 'create', 'rotate', 'revoke', 'assign'],
         'projects' => ['read', 'create', 'update', 'delete'],
-        // Os módulos instalados acrescentam os deles na cópia da aplicação
-        // (no starter, 'uploads' => ['create']).
+        // Os módulos instalados acrescentam os deles sozinhos (uploads:
+        // 'uploads' => ['create']).
     ],
 
     // --- API v1 (pacote twstec/kit-accounts) ------------------------------------

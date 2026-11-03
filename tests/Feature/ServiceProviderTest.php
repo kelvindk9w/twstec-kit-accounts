@@ -196,3 +196,10 @@ it('um render próprio da aplicação para api/* roda antes do envelope do pacot
 
     $this->getJson('/api/v1/projects')->assertStatus(418)->assertExactJson(['meu' => 'envelope']);
 });
+
+it('acrescenta ao /admin a expiração de chaves de API por inatividade, sem cópia no aplicativo', function (): void {
+    expect(config('settings.overrides'))->toHaveKey('api_keys.inactivity.months')
+        ->toHaveKey('api_keys.inactivity.warning_days')
+        // As da base continuam.
+        ->toHaveKey('security.rate_limit.api');
+});

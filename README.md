@@ -177,8 +177,11 @@ Nenhuma proteção depende de o aplicativo lembrar de chamar algo:
 - **Configuração padrão** em `config('api_keys')` e `config('accounts')`
   (guard e chave de sessão da conta selecionada, o middleware web, o lote da
   migração, validade, limite e intervalo dos convites, limite de contas de
-  empresa por dono); as chaves de primeiro nível dos arquivos do aplicativo prevalecem
-  (`vendor:publish --tag=accounts-config`).
+  empresa por dono), sem cópia no aplicativo; as chaves de primeiro nível de
+  um `config/api_keys.php` ou `config/accounts.php` do aplicativo prevalecem,
+  cada uma inteira ([personalização](../../docs/personalizacao.md)). O pacote
+  acrescenta a expiração das chaves às configurações editáveis do /admin
+  (`settings.overrides`) sozinho.
 - **Migrations** com os **mesmos nomes de arquivo** que tinham no aplicativo na
   1.x (`projects`, `api_keys`, `api_key_project` e a coluna
   `restricted_to_projects`): um banco que já as rodou não vê nada pendente; e

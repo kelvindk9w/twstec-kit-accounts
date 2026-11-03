@@ -41,6 +41,8 @@ use Twstec\Kit\Accounts\Tenancy\Support\TenantIdempotencyScope;
 use Twstec\Kit\Accounts\Tenancy\Support\TenantRateLimitSubject;
 use Twstec\Kit\Accounts\Tenancy\TenantContext;
 use Twstec\Kit\Auth\Contracts\AuthUser;
+use Twstec\Kit\Foundation\Customization\PackageConfig;
+use Twstec\Kit\Foundation\Customization\PackageViews;
 use Twstec\Kit\Foundation\Http\Exceptions\ApiErrorRenderer;
 use Twstec\Kit\Foundation\Idempotency\Contracts\IdempotencyScopeResolver;
 use Twstec\Kit\Foundation\Localization\PackageTranslations;
@@ -144,8 +146,15 @@ final class AccountsServiceProvider extends ServiceProvider
 
     public function register(): void
     {
-        $this->mergeConfigFrom($this->path('config/api_keys.php'), 'api_keys');
-        $this->mergeConfigFrom($this->path('config/accounts.php'), 'accounts');
+        PackageConfig::merge($this->app, $this->path('config/api_keys.php'), 'api_keys');
+        PackageConfig::merge($this->app, $this->path('config/accounts.php'), 'accounts');
+
+        // Expiração de chaves de API por inatividade, editável no /admin:
+        // meses sem uso até desativar + dias de aviso prévio por e-mail.
+        PackageConfig::contribute($this->app, 'settings.overrides', [
+            'api_keys.inactivity.months' => ['type' => 'int', 'min' => 1, 'max' => 36, 'group' => 'api_keys', 'span' => 3],
+            'api_keys.inactivity.warning_days' => ['type' => 'int', 'min' => 1, 'max' => 90, 'group' => 'api_keys', 'span' => 3],
+        ]);
 
         // Conta atual da requisição (ver Account\CurrentAccount) e o contexto
         // de conta dos jobs. Zerados por requisição pelos middlewares do
@@ -188,6 +197,10 @@ final class AccountsServiceProvider extends ServiceProvider
         }
 
         PackageTranslations::register($this->app, $this->path('lang'));
+
+        // Corpos dos e-mails do pacote (`mail.messages.<slug>`): um arquivo de
+        // mesmo nome em resources/views do aplicativo prevalece.
+        PackageViews::register($this->app, $this->path('resources/views'));
     }
 
     public function boot(): void

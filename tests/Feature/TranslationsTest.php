@@ -21,7 +21,7 @@ it('todos os idiomas têm os mesmos arquivos e chaves do pt-BR', function (): vo
         $reference[basename($file)] = collect(require $file)->dot()->keys()->sort()->values();
     }
 
-    expect(array_keys($reference))->toBe(['accounts.php', 'api_keys.php', 'mail.php']);
+    expect(array_keys($reference))->toBe(['accounts.php', 'api_keys.php', 'mail.php', 'panel.php']);
 
     foreach (['en', 'es'] as $locale) {
         foreach ($reference as $file => $keys) {

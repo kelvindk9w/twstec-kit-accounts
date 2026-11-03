@@ -3,9 +3,10 @@
 declare(strict_types=1);
 
 // =============================================================================
-// Contas com membros — configuração padrão do pacote twstec/kit-accounts
-// (`vendor:publish --tag=accounts-config` publica também este arquivo; as
-// chaves de primeiro nível do aplicativo prevalecem).
+// Contas com membros — configuração padrão do pacote twstec/kit-accounts. O
+// aplicativo só tem config/accounts.php se mudar algo, com as chaves que muda
+// de primeiro nível que muda — cada uma vence a do pacote inteira; para um
+// valor solto, prefira a variável do .env (ver docs/personalizacao.md).
 //
 // O isolamento em si (o escopo da conta atual, que lança exceção sem conta)
 // NÃO é configurável: não existe chave para desligá-lo.
