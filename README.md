@@ -22,8 +22,8 @@ Toda consulta de dado de conta sai filtrada pela conta atual — e, sem conta,
 atual, modo sistema, jobs, exclusão de pessoa, migração da 1.x) está em
 [`docs/tenancy.md`](https://github.com/kelvindk9w/tws-laravel-starter-kit/blob/desenvolvimento/docs/tenancy.md). Membros, convites, transferência de
 propriedade, exclusão de conta e a trilha de auditoria de cada evento de conta
-são **Actions** do pacote (sem tela), com as respostas HTTP em contratos — o
-starter Livewire tem as telas; outro front reaproveita as Actions.
+são **Actions** do pacote (sem tela), com as respostas HTTP em contratos — as
+telas dos starters (React e Livewire) as usam; outro front reaproveita as Actions.
 
 - **Requisitos:** PHP 8.4+, Laravel 13, `twstec/kit-auth` e
   `twstec/kit-foundation` 2.x.
@@ -45,14 +45,14 @@ starter Livewire tem as telas; outro front reaproveita as Actions.
 | `Account\Support\MemberRules` | Quem mexe em quem (a mesma regra na Action e na tela) |
 | `Account\Support\AccountResourceGuard` | A guarda das telas de chaves de API e de projetos: papel (`authorize()`, o 403 de sempre) e posse (`apiKey()`, `project()`: o 404 comum, idêntico para "de outra conta" e "não existe"; `foreignProjects()` no vínculo), gravando cada recusa (`denied`) com a ação tentada — `ApiKeyAttempt`, `ProjectAttempt`. Na API v1, os 403 de escopo e de chave vinculada também gravam `denied` (contexto `api`); os 401/404 ficam só no `request_logs` |
 | `Account\Support\AccountAudit` | A trilha dos eventos de conta em `audit_events` (quem, conta, alvo, antes/depois redigido, IP, UA, correlation_id; `denied` nas recusas), na transação da mudança |
-| `Account\Support\OrphanedApiKeys`, `Account\Mail` | O aviso de chave órfã e o convite (e-mails no template do kit, na galeria `/mail-preview`; o corpo é do front) |
+| `Account\Support\OrphanedApiKeys`, `Account\Mail` | O aviso de chave órfã e o convite (e-mails no template do kit, na galeria `/mail-preview`; o corpo vem do pacote e o aplicativo pode sobrescrevê-lo) |
 | `Account\Models\AccountInvitation`, `Account\Invitations` | O convite (dado da conta; token só em hash), a busca pelo token (o único modo sistema dos convites) e o que a tela do link pode mostrar (`InvitationPreview`) |
 | `Account\Queries\AccountDirectory` | As leituras das telas de conta (contas da pessoa, membros, convites em aberto) |
 | `Account\Contracts\Responses`, `Account\Http` | Os contratos de resposta (aceite, recusa, convite indisponível, troca de conta — padrão `bindIf`) e os controllers dos envios do link de convite e da troca de conta (com `throttle:sensitive` no controller) |
 | `Account\Http\Middleware\ResolveCurrentAccount` | No grupo `web`: limpa a seleção que deixou de valer e o estado por requisição |
 | `Account\Queue\AccountJobContext` | O contexto de conta no payload dos jobs e a restauração no worker |
 | `Account\Support\AccountDatabaseGuards` | Os gatilhos do PostgreSQL (regra do dono, chave ↔ projeto da mesma conta) |
-| `ApiKeys\Support` | Par de chaves `pk_`/`sk_` (`ApiKeyGenerator`) e o hash da secreta com HMAC-SHA256 + pepper, verificado com `hash_equals` (`ApiKeyHasher`): pepper vazio nunca é usado, peppers anteriores e o legado do pepper vazio (só com flag) migram no primeiro uso, e os avisos de produção sobre o pepper (`PepperWarnings`) |
+| `ApiKeys\Support` | Par de chaves `pk_`/`sk_`, com o prefixo do produto opcional (`API_KEY_PREFIX` → `acme_pk_…`) (`ApiKeyGenerator`) e o hash da secreta com HMAC-SHA256 + pepper, verificado com `hash_equals` (`ApiKeyHasher`): pepper vazio nunca é usado, peppers anteriores e o legado do pepper vazio (só com flag) migram no primeiro uso, e os avisos de produção sobre o pepper (`PepperWarnings`) |
 | `ApiKeys\Models\ApiKey` | Da conta (`account`, `creator`); escopos `recurso:acao` com curinga, vínculo com projetos e a marca de restrição (`restricted_to_projects`), validade, rotação com período de graça, inatividade, `last_used_at` com escrita limitada |
 | `ApiKeys\Services\ApiKeyService` | Criar, rotacionar (herda nome, escopos, projetos e a restrição), revogar e vincular projetos |
 | `ApiKeys\Console\ProcessApiKeyInactivity` | `api-keys:process-inactivity`: aviso prévio por e-mail e desativação por inatividade |
@@ -248,12 +248,12 @@ O envelope de erro vale para `api/*`: um prefixo fora de `api/` fica sem ele.
 | --- | --- | --- |
 | Telas de chaves, projetos e painel do cliente | Componentes do front sobre `ApiKeyService`, `ProjectService` e `AccountOverviewQuery`, conferindo o papel e a posse com o `Account\Support\AccountResourceGuard` (o mesmo 403/404, com a recusa na trilha) | São a interface |
 | Seletor de conta, página da conta, tela do convite | Telas sobre as Actions, o `AccountDirectory` e o `InvitationPreview`; rotas apontando para os controllers do pacote (`InvitationController`, `AccountSwitchController`) | São a interface |
-| Corpo dos e-mails de convite e de chave órfã | Views `mail.messages.account-invitation` e `mail.messages.orphaned-api-keys` (a do convite usa a rota `invitations.show`; a do aviso, a rota assinada `accounts.open`) | É interface |
+| Corpo dos e-mails de convite e de chave órfã (opcional) | O pacote traz `mail.messages.account-invitation` e `mail.messages.orphaned-api-keys` (a do convite usa a rota `invitations.show`; a do aviso, a rota assinada `accounts.open`); um arquivo de mesmo nome em `resources/views/mail/messages/` do aplicativo vence (`PackageViews`) | O texto é interface: o projeto muda só o que precisar |
 | Modo sistema dos próprios comandos, seeders e jobs que varrem contas | `Accounts::asSystem('motivo', fn () => …)` | Só o código sabe que precisa ver todas as contas |
 | Agendamento do `api-keys:process-inactivity` | `Schedule::command('api-keys:process-inactivity')->daily()` em `routes/console.php` | A ordem do agendamento é do aplicativo; a recusa da chave inativa já vale na autenticação sem ele |
-| Corpo do aviso de inatividade | View `mail.messages.api-key-inactivity-warning` | É interface (o layout `<x-email::…>` é do foundation) |
-| Catálogo de escopos oferecido na tela | `api_keys.scopes_catalog` na cópia do aplicativo | O front decide o que oferece; a API aceita qualquer `recurso:acao` bem formado |
-| Resources do painel `/admin` | No starter | São do painel de administração |
+| Corpo do aviso de inatividade (opcional) | O pacote traz `mail.messages.api-key-inactivity-warning`; o arquivo de mesmo nome no aplicativo vence | O texto é interface (o layout `<x-email::…>` é do foundation) |
+| Catálogo de escopos oferecido na tela | `api_keys.scopes_catalog` (o padrão vem do pacote, e os módulos acrescentam os deles; um `config/api_keys.php` do aplicativo com a chave fica com a lista inteira) | O front decide o que oferece; a API aceita qualquer `recurso:acao` bem formado |
+| Resources do painel `/admin` | No pacote `twstec/kit-admin` | São do painel de administração |
 
 ## Nomes antigos → nomes novos
 
