@@ -18,6 +18,15 @@ return [
     // pk_test_/sk_test_. Produção usa 'live'; sandbox/dev usam 'test'.
     'environment' => env('API_KEYS_ENVIRONMENT', 'live'),
 
+    // Prefixo do PRODUTO nas chaves geradas (opcional): API_KEY_PREFIX=acme
+    // gera acme_pk_live_…/acme_sk_live_… — quem recebe reconhece a chave, e a
+    // varredura de segredo vazado acha as suas por padrão. Só letras
+    // minúsculas e números, até 16 caracteres; inválido impede a
+    // inicialização (ApiKeyGenerator::prefix). Trocar não invalida as chaves
+    // já emitidas: a autenticação procura a chave pública inteira, sem olhar
+    // o prefixo.
+    'prefix' => (string) env('API_KEY_PREFIX', ''),
+
     // --- Hash da chave secreta --------------------------------------------------
     // DECISÃO (documentada em docs/api.md): HMAC-SHA256 com pepper, no padrão Sanctum
     // (SHA-256). A sk_ tem 256 bits de entropia aleatória criptográfica — KDF

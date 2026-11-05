@@ -33,6 +33,7 @@ use Twstec\Kit\Accounts\Account\Support\PersonLifecycle;
 use Twstec\Kit\Accounts\ApiKeys\Console\ProcessApiKeyInactivity;
 use Twstec\Kit\Accounts\ApiKeys\Http\Middleware\EnsureAccountWideApiKey;
 use Twstec\Kit\Accounts\ApiKeys\Http\Middleware\EnsureApiKeyScope;
+use Twstec\Kit\Accounts\ApiKeys\Support\ApiKeyGenerator;
 use Twstec\Kit\Accounts\ApiKeys\Support\PepperWarnings;
 use Twstec\Kit\Accounts\Deletion\AccountDeletion;
 use Twstec\Kit\Accounts\Deletion\DeletionImpediments;
@@ -207,6 +208,10 @@ final class AccountsServiceProvider extends ServiceProvider
     {
         $this->registerAccounts();
         $this->registerApiProtections();
+
+        // Prefixo do produto nas chaves de API: inválido impede a
+        // inicialização (as chaves sairiam fora do formato).
+        ApiKeyGenerator::prefix();
 
         // Pepper do hash das chaves de API em produção: sem pepper dedicado
         // (ausente ou VAZIO, que vale como ausente) ou com a flag do pepper
