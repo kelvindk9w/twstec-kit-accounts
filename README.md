@@ -67,12 +67,10 @@ telas dos starters (React e Livewire) as usam; outro front reaproveita as Action
 Pelo Packagist:
 
 ```bash
-composer require "twstec/kit-accounts:~2.0@beta"   # durante o beta; na 2.0.0 estável, ~2.0
+composer require "twstec/kit-accounts:~2.0"
 ```
 
-Durante o beta, cada pacote do kit que você requerer leva o `@beta` (ou o
-projeto declara `"minimum-stability": "beta"` com `"prefer-stable": true`) —
-ver [docs/instalacao.md](https://github.com/kelvindk9w/tws-laravel-starter-kit/blob/desenvolvimento/docs/instalacao.md).
+Mais detalhes em [docs/instalacao.md](https://github.com/kelvindk9w/tws-laravel-starter-kit/blob/desenvolvimento/docs/instalacao.md).
 
 **No monorepo** (desenvolvimento do próprio kit), o starter instala o pacote por
 *path repository* — como os
