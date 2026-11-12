@@ -134,6 +134,9 @@ final class ResolveTenant
 
         $this->bindRequestLog($request, $tenantUuid);
 
+        // Quem fez, na trilha: a chave (o RequestLogging lê no fim do ciclo).
+        $request->attributes->set(RequestLog::API_KEY_ATTRIBUTE, (string) $apiKey->uuid);
+
         return app(CurrentAccount::class)->runWith(
             ['type' => CurrentAccount::FRAME_ACCOUNT, 'account' => $account, 'actor' => $person],
             function () use ($request, $next, $apiKey, $plainSecret, $hashToVerify, $match, $tenantUuid): Response {
