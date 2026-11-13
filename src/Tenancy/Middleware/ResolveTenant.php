@@ -89,7 +89,7 @@ final class ResolveTenant
         // A chave ainda não tem conta conhecida — é ela que diz qual é. A
         // busca pela pública é a única leitura de chave em modo sistema na API.
         /** @var ApiKey|null $apiKey */
-        $apiKey = Accounts::asSystem('api.authenticate', fn () => ApiKey::query()->where('public_key', $publicKey)->first());
+        $apiKey = Accounts::asSystem('api.authenticate', fn () => ApiKey::query()->withSessionKeys()->where('public_key', $publicKey)->first());
 
         // Timing-safe SEMPRE: verifica o hash mesmo quando a pk_ não existe
         // (segredo inválido contra hash fictício), para não vazar por tempo
@@ -200,6 +200,7 @@ final class ResolveTenant
             $newHash = $this->hasher->hash($plainSecret);
 
             $updated = ApiKey::query()
+                ->withSessionKeys()
                 ->whereKey($apiKey->getKey())
                 ->where('secret_hash', $oldHash)
                 ->update(['secret_hash' => $newHash]);

@@ -22,6 +22,7 @@ use Twstec\Kit\Accounts\Account\Models\AccountMembership;
 use Twstec\Kit\Accounts\Account\Support\AccountDatabaseGuards;
 use Twstec\Kit\Accounts\Account\Support\OrphanedApiKeys;
 use Twstec\Kit\Accounts\Accounts;
+use Twstec\Kit\Accounts\ApiKeys\Enums\ApiKeyStatus;
 use Twstec\Kit\Accounts\ApiKeys\Models\ApiKey;
 use Twstec\Kit\Accounts\Deletion\AccountDeletion;
 use Twstec\Kit\Accounts\Deletion\DeletionImpediments;
@@ -405,7 +406,14 @@ final class AccountService
                     ->each(fn (Account $account) => $this->removeAccount($account));
 
                 Project::query()->where('created_by', $userId)->update(['created_by' => null]);
-                ApiKey::query()->where('created_by', $userId)->update(['created_by' => null]);
+
+                // As chaves de SESSÃO da pessoa morrem com ela (a sessão não
+                // existe mais); a rotina das chaves de sessão as apaga.
+                ApiKey::query()->onlySessionKeys()->where('created_by', $userId)
+                    ->where('status', ApiKeyStatus::Active)
+                    ->update(['status' => ApiKeyStatus::Revoked]);
+
+                ApiKey::query()->withSessionKeys()->where('created_by', $userId)->update(['created_by' => null]);
             });
         });
 
@@ -452,11 +460,12 @@ final class AccountService
         Accounts::asSystem('accounts:delete-account', function () use ($account): void {
             AccountDeleting::dispatch($account);
 
-            ApiKey::query()->where('account_id', $account->getKey())->get()
+            // Todas as chaves da conta, as de sessão inclusive.
+            ApiKey::query()->withSessionKeys()->where('account_id', $account->getKey())->get()
                 ->each(fn (ApiKey $key) => $key->projects()->detach());
 
-            ApiKey::query()->where('account_id', $account->getKey())->update(['rotated_from_id' => null, 'rotated_to_id' => null]);
-            ApiKey::query()->where('account_id', $account->getKey())->delete();
+            ApiKey::query()->withSessionKeys()->where('account_id', $account->getKey())->update(['rotated_from_id' => null, 'rotated_to_id' => null]);
+            ApiKey::query()->withSessionKeys()->where('account_id', $account->getKey())->delete();
             Project::query()->where('account_id', $account->getKey())->delete();
             AccountInvitation::query()->where('account_id', $account->getKey())->delete();
 

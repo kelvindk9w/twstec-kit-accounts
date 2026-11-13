@@ -40,6 +40,12 @@ return [
         'expires_at' => 'Validade',
         'no_expiration' => 'Sem validade',
         'expires_hint' => 'Vazio = sem validade. O sistema nunca impõe prazo.',
+        'expiry_unit_none' => 'Sem validade',
+        'expiry_unit_hours' => 'Por algumas horas',
+        'expiry_unit_days' => 'Por alguns dias',
+        'expiry_amount' => 'Quantidade',
+        'expiry_amount_hint_hours' => 'De 1 a :max horas, contadas a partir da criação.',
+        'expiry_amount_hint_days' => 'De 1 a :max dias, contados a partir da criação.',
         'grace_hint' => 'A chave antiga pode morrer imediatamente ou continuar válida por um período, evitando downtime na troca.',
 
         'scopes_heading' => 'Permissões (scopes)',
@@ -82,6 +88,7 @@ return [
 
         // Fluxo de ação sensível (senha de transação + código por e-mail).
         'sensitive_requires_password' => 'Defina sua senha de transação no Perfil antes de criar chaves.',
+        'rotate_requires_password' => 'Defina sua senha de transação no Perfil antes de rotacionar chaves.',
 
         'status_active' => 'Ativa',
         'status_revoked' => 'Revogada',

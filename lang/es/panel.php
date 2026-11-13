@@ -40,6 +40,12 @@ return [
         'expires_at' => 'Vigencia',
         'no_expiration' => 'Sin vigencia',
         'expires_hint' => 'Vacío = sin vigencia. El sistema nunca impone plazo.',
+        'expiry_unit_none' => 'Sin vigencia',
+        'expiry_unit_hours' => 'Por algunas horas',
+        'expiry_unit_days' => 'Por algunos días',
+        'expiry_amount' => 'Cantidad',
+        'expiry_amount_hint_hours' => 'De 1 a :max horas, contadas desde la creación.',
+        'expiry_amount_hint_days' => 'De 1 a :max días, contados desde la creación.',
         'grace_hint' => 'La clave antigua puede morir de inmediato o seguir válida por un período, evitando downtime en el cambio.',
 
         'scopes_heading' => 'Permisos (scopes)',
@@ -82,6 +88,7 @@ return [
 
         // Flujo de acción sensible (contraseña de transacción + código por correo).
         'sensitive_requires_password' => 'Define tu contraseña de transacción en el Perfil antes de crear claves.',
+        'rotate_requires_password' => 'Define tu contraseña de transacción en el Perfil antes de rotar claves.',
 
         'status_active' => 'Activa',
         'status_revoked' => 'Revocada',

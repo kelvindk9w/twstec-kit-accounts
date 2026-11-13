@@ -40,6 +40,12 @@ return [
         'expires_at' => 'Expiration',
         'no_expiration' => 'No expiration',
         'expires_hint' => 'Empty = no expiration. The system never imposes a deadline.',
+        'expiry_unit_none' => 'No expiration',
+        'expiry_unit_hours' => 'For a few hours',
+        'expiry_unit_days' => 'For a few days',
+        'expiry_amount' => 'Amount',
+        'expiry_amount_hint_hours' => 'From 1 to :max hours, counted from creation.',
+        'expiry_amount_hint_days' => 'From 1 to :max days, counted from creation.',
         'grace_hint' => 'The old key can die immediately or stay valid for a period, avoiding downtime during the swap.',
 
         'scopes_heading' => 'Permissions (scopes)',
@@ -82,6 +88,7 @@ return [
 
         // Sensitive action flow (transaction password + email code).
         'sensitive_requires_password' => 'Set your transaction password in your Profile before creating keys.',
+        'rotate_requires_password' => 'Set your transaction password in your Profile before rotating keys.',
 
         'status_active' => 'Active',
         'status_revoked' => 'Revoked',

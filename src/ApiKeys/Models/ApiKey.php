@@ -6,6 +6,7 @@ namespace Twstec\Kit\Accounts\ApiKeys\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -13,6 +14,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Support\Carbon;
 use Twstec\Kit\Accounts\Account\Concerns\BelongsToAccount;
 use Twstec\Kit\Accounts\ApiKeys\Enums\ApiKeyStatus;
+use Twstec\Kit\Accounts\ApiKeys\Scopes\SessionKeyScope;
 use Twstec\Kit\Accounts\Tenancy\Models\Project;
 use Twstec\Kit\Foundation\Identifiers\HasPublicCode;
 use Twstec\Kit\Foundation\Identifiers\RoutesByUuid;
@@ -38,6 +40,14 @@ use Twstec\Kit\Foundation\Identifiers\RoutesByUuid;
  * rotação com morte imediata ou programada (grace_ends_at) e expiração por
  * inatividade (job diário — ver config/api_keys.php).
  *
+ * CHAVE DE SESSÃO (`session_binding` preenchido — ApiKeyService::
+ * createForSession): presa a uma sessão web, morre quando ela termina
+ * (logout, outros aparelhos, troca de senha, bloqueio, inatividade da
+ * sessão) e é apagada pela rotina `api-keys:prune-session-keys` quando
+ * revogada ou vencida. Fica fora de toda consulta por padrão
+ * (Scopes\SessionKeyScope): `withSessionKeys()` / `onlySessionKeys()` para
+ * vê-las. Escopos, projetos, validade e trilha valem como em qualquer chave.
+ *
  * Colunas (para a análise estática — Larastan/PHPStan — de quem usa o pacote):
  *
  * @property int $id
@@ -50,6 +60,8 @@ use Twstec\Kit\Foundation\Identifiers\RoutesByUuid;
  * @property string $secret_hash
  * @property list<string> $scopes
  * @property bool $restricted_to_projects
+ * @property string|null $session_binding
+ * @property Carbon|null $session_seen_at
  * @property ApiKeyStatus $status
  * @property Carbon|null $expires_at
  * @property Carbon|null $last_used_at
@@ -62,13 +74,21 @@ use Twstec\Kit\Foundation\Identifiers\RoutesByUuid;
  */
 #[Fillable([
     'account_id', 'created_by', 'name', 'public_key', 'secret_hash', 'scopes', 'restricted_to_projects',
-    'expires_at', 'last_used_at', 'inactivity_warning_sent_at',
+    'session_binding', 'session_seen_at', 'expires_at', 'last_used_at', 'inactivity_warning_sent_at',
     'rotated_from_id', 'rotated_to_id', 'grace_ends_at', 'status',
 ])]
-#[Hidden(['secret_hash'])]
+#[Hidden(['secret_hash', 'session_binding'])]
 class ApiKey extends Model
 {
     use BelongsToAccount, HasPublicCode, HasUuids, RoutesByUuid;
+
+    /**
+     * Chaves de sessão fora de toda consulta por padrão (ver SessionKeyScope).
+     */
+    protected static function booted(): void
+    {
+        static::addGlobalScope(new SessionKeyScope);
+    }
 
     /**
      * Prefixo do código público legível: KEY-xxxxxx.
@@ -107,8 +127,60 @@ class ApiKey extends Model
             'last_used_at' => 'datetime',
             'inactivity_warning_sent_at' => 'datetime',
             'grace_ends_at' => 'datetime',
+            'session_seen_at' => 'datetime',
             'status' => ApiKeyStatus::class,
         ];
+    }
+
+    /**
+     * Inclui as chaves de SESSÃO na consulta (por padrão elas ficam fora).
+     *
+     * @param  Builder<ApiKey>  $query
+     * @return Builder<ApiKey>
+     */
+    public function scopeWithSessionKeys(Builder $query): Builder
+    {
+        return $query->withoutGlobalScope(SessionKeyScope::class);
+    }
+
+    /**
+     * Só as chaves de SESSÃO.
+     *
+     * @param  Builder<ApiKey>  $query
+     * @return Builder<ApiKey>
+     */
+    public function scopeOnlySessionKeys(Builder $query): Builder
+    {
+        return $query->withoutGlobalScope(SessionKeyScope::class)->whereNotNull($query->qualifyColumn('session_binding'));
+    }
+
+    /**
+     * Chave presa a uma sessão web (ApiKeyService::createForSession)?
+     */
+    public function isSessionBound(): bool
+    {
+        return $this->session_binding !== null;
+    }
+
+    /**
+     * A sessão desta chave de sessão VENCEU por inatividade? Ela é vista a
+     * cada requisição web (com intervalo mínimo — TouchSessionApiKeys); sem
+     * ser vista há mais que o SESSION_LIFETIME, a sessão já não existe para
+     * o Laravel, e a chave morre com ela. Chave comum: nunca.
+     */
+    public function sessionExpired(): bool
+    {
+        if (! $this->isSessionBound()) {
+            return false;
+        }
+
+        $seenAt = $this->session_seen_at ?? $this->created_at;
+
+        if ($seenAt === null) {
+            return true;
+        }
+
+        return $seenAt->lt(now()->subMinutes(max(1, (int) config('session.lifetime', 120))));
     }
 
     /**
@@ -203,6 +275,12 @@ class ApiKey extends Model
             return false;
         }
 
+        // Chave de sessão cuja sessão venceu por inatividade (defesa em
+        // profundidade: a rotina agendada a revoga, mas pode atrasar).
+        if ($this->sessionExpired()) {
+            return false;
+        }
+
         return ! $this->isInactive();
     }
 
@@ -243,6 +321,7 @@ class ApiKey extends Model
         $cutoff = now()->subSeconds($throttleSeconds);
 
         static::query()
+            ->withSessionKeys()
             ->where('id', $this->id)
             ->where(function ($query) use ($cutoff): void {
                 $query->whereNull('last_used_at')->orWhere('last_used_at', '<=', $cutoff);

@@ -36,6 +36,9 @@ final class ApiKeyResource extends BaseResource
             // Alcance da chave: `account` (conta toda) ou `projects` (só os
             // listados em `projects` — que pode estar vazio: sem acesso).
             'project_access' => $this->isRestrictedToProjects() ? 'projects' : 'account',
+            // Chave de SESSÃO (presa a uma sessão web, morre com ela): só a
+            // vê quem a criou por uma chave de sessão — as listas não a mostram.
+            'session_bound' => $this->isSessionBound(),
             'projects' => $this->whenLoaded('projects', fn (): array => $this->projects
                 ->map(fn ($project): array => [
                     'uuid' => $project->uuid,

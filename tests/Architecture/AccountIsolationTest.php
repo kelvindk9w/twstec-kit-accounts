@@ -43,6 +43,22 @@ const ACCOUNTS_SYSTEM_MODE_ALLOWED = [
     // O link de convite não diz de que conta é o convite: achar pelo hash do
     // token e marcá-lo como aceito/recusado (um ponto só, InvitationTokens::system).
     'src/Account/Invitations/InvitationTokens.php' => 1,
+    // Chaves de SESSÃO: a sessão que termina (logout, outros aparelhos,
+    // troca de senha, bloqueio) pode ter chaves em contas que não são a
+    // atual — ou nem há conta atual (logout); marcar a sessão vista; a rotina
+    // agendada que revoga as de sessão vencida e apaga as que já não valem,
+    // de todas as contas; e a revogação em si (5 pontos, cada um com motivo).
+    'src/ApiKeys/Sessions/SessionApiKeys.php' => 5,
+];
+
+/**
+ * Atalhos que pulam escopo global e são LIBERADOS, com o motivo: tirar o
+ * escopo das CHAVES DE SESSÃO (Scopes\SessionKeyScope, que as esconde das
+ * listas e contagens) — o escopo da conta continua valendo. Só a chamada
+ * exata, pela classe do escopo; qualquer outra forma reprova.
+ */
+const ACCOUNTS_SCOPE_BYPASS_ALLOWED = [
+    'withoutGlobalScope(SessionKeyScope::class)',
 ];
 
 /**
@@ -117,9 +133,10 @@ function accountIsolationViolations(string $codigo): array
     }
 
     $violacoes = [];
+    $semLiberados = str_replace(ACCOUNTS_SCOPE_BYPASS_ALLOWED, '', $semComentarios);
 
     foreach (['withoutGlobalScope', 'newQueryWithoutScopes', 'newModelQuery', '->getQuery()'] as $atalho) {
-        if (str_contains($semComentarios, $atalho)) {
+        if (str_contains($semLiberados, $atalho)) {
             $violacoes[] = "usa {$atalho}";
         }
     }
@@ -206,6 +223,10 @@ it('a trava não é cega: pega cada atalho e ignora comentário', function (): v
         ->and(accountIsolationViolations("<?php \$q->join('api_key_project', 'a', '=', 'b');"))->toBe(['consulta crua em api_key_project'])
         ->and(accountIsolationViolations("<?php // DB::table('projects') withoutGlobalScopes\n\$x = 1;"))->toBe([])
         ->and(accountIsolationViolations("<?php DB::table('users')->get();"))->toBe([])
+        // Só o escopo das chaves de sessão é liberado — o da conta, nunca.
+        ->and(accountIsolationViolations('<?php $q->withoutGlobalScope(SessionKeyScope::class);'))->toBe([])
+        ->and(accountIsolationViolations('<?php $q->withoutGlobalScope(AccountScope::class);'))->toBe(['usa withoutGlobalScope'])
+        ->and(accountIsolationViolations('<?php $q->withoutGlobalScope(SessionKeyScope::class)->withoutGlobalScopes();'))->toBe(['usa withoutGlobalScope'])
         ->and(systemModeCalls("<?php Accounts::asSystem('motivo', fn () => 1); \\Twstec\\Kit\\Accounts\\Accounts::asSystem(\$x, fn () => 1); \$m = 'Accounts::asSystem(\\'texto\\')';"))
         ->toBe(['com_motivo' => 1, 'sem_motivo' => 1]);
 });

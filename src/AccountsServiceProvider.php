@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Twstec\Kit\Accounts;
 
 use Closure;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Contracts\Debug\ExceptionHandler;
 use Illuminate\Contracts\Http\Kernel as HttpKernelContract;
 use Illuminate\Foundation\Http\Events\RequestHandled;
@@ -30,9 +31,13 @@ use Twstec\Kit\Accounts\Account\Http\Responses\InvitationUnavailableResponse;
 use Twstec\Kit\Accounts\Account\Queue\AccountJobContext;
 use Twstec\Kit\Accounts\Account\Services\AccountService;
 use Twstec\Kit\Accounts\Account\Support\PersonLifecycle;
+use Twstec\Kit\Accounts\ApiKeys\Confirmation\ApiKeyConfirmationPolicy;
 use Twstec\Kit\Accounts\ApiKeys\Console\ProcessApiKeyInactivity;
+use Twstec\Kit\Accounts\ApiKeys\Console\PruneSessionApiKeys;
 use Twstec\Kit\Accounts\ApiKeys\Http\Middleware\EnsureAccountWideApiKey;
 use Twstec\Kit\Accounts\ApiKeys\Http\Middleware\EnsureApiKeyScope;
+use Twstec\Kit\Accounts\ApiKeys\Http\Middleware\TouchSessionApiKeys;
+use Twstec\Kit\Accounts\ApiKeys\Sessions\SessionApiKeys;
 use Twstec\Kit\Accounts\ApiKeys\Support\ApiKeyGenerator;
 use Twstec\Kit\Accounts\ApiKeys\Support\PepperWarnings;
 use Twstec\Kit\Accounts\Deletion\AccountDeletion;
@@ -42,6 +47,7 @@ use Twstec\Kit\Accounts\Tenancy\Support\TenantIdempotencyScope;
 use Twstec\Kit\Accounts\Tenancy\Support\TenantRateLimitSubject;
 use Twstec\Kit\Accounts\Tenancy\TenantContext;
 use Twstec\Kit\Auth\Contracts\AuthUser;
+use Twstec\Kit\Auth\Events\SessionsEnded;
 use Twstec\Kit\Foundation\Customization\PackageConfig;
 use Twstec\Kit\Foundation\Customization\PackageViews;
 use Twstec\Kit\Foundation\Http\Exceptions\ApiErrorRenderer;
@@ -76,6 +82,14 @@ use WeakMap;
  *   (conta + chave, ou conta + pessoa — Tenancy\Support\TenantIdempotencyScope);
  * - o comando `api-keys:process-inactivity` (aviso prévio e desativação por
  *   inatividade — o AGENDAMENTO é do aplicativo, em routes/console.php);
+ * - as CHAVES DE SESSÃO (ApiKeys\Sessions\SessionApiKeys): revogadas na hora
+ *   quando a sessão termina (ouvinte de Twstec\Kit\Auth\Events\
+ *   SessionsEnded), a sessão vista no grupo `web` (TouchSessionApiKeys) e a
+ *   rotina `api-keys:prune-session-keys`, AGENDADA pelo pacote
+ *   (`api_keys.session_keys.prune_schedule`);
+ * - a política de confirmação da criação de chave por ambiente
+ *   (`api_keys.creation_confirmation`), conferida no boot: inválida, ou
+ *   afrouxada em `live`, impede a inicialização;
  * - as rotas da API v1 (`/api/v1/…`), desligáveis para a aplicação
  *   registrar ela mesma (ver Http\ApiRoutes);
  * - as PROTEÇÕES da API (ver registerApiProtections): a autenticação por
@@ -213,6 +227,12 @@ final class AccountsServiceProvider extends ServiceProvider
         // inicialização (as chaves sairiam fora do formato).
         ApiKeyGenerator::prefix();
 
+        // Confirmação da criação de chave por ambiente: política inválida ou
+        // afrouxada em `live` impede a inicialização (nunca afrouxa calado).
+        ApiKeyConfirmationPolicy::assertConfigured();
+
+        $this->registerSessionApiKeys();
+
         // Pepper do hash das chaves de API em produção: sem pepper dedicado
         // (ausente ou VAZIO, que vale como ausente) ou com a flag do pepper
         // vazio legado ligada → aviso no log a cada boot. Aviso, não recusa:
@@ -231,7 +251,7 @@ final class AccountsServiceProvider extends ServiceProvider
         }
 
         if ($this->app->runningInConsole()) {
-            $this->commands([ProcessApiKeyInactivity::class]);
+            $this->commands([ProcessApiKeyInactivity::class, PruneSessionApiKeys::class]);
 
             $this->publishes([
                 $this->path('config/api_keys.php') => config_path('api_keys.php'),
@@ -281,7 +301,40 @@ final class AccountsServiceProvider extends ServiceProvider
         $this->callAfterResolving(HttpKernelContract::class, function (HttpKernelContract $kernel): void {
             if ($kernel instanceof HttpKernel && array_key_exists('web', $kernel->getMiddlewareGroups())) {
                 $kernel->appendMiddlewareToGroup('web', ResolveCurrentAccount::class);
+                // A sessão foi vista: renova as chaves de sessão dela (sessão
+                // sem chave de sessão não paga nada).
+                $kernel->appendMiddlewareToGroup('web', TouchSessionApiKeys::class);
             }
+        });
+    }
+
+    /**
+     * Chaves de API de SESSÃO: revogadas na hora quando a sessão termina
+     * (qualquer caminho que dispare SessionsEnded — logout, outros aparelhos,
+     * troca de senha, bloqueio) e a rotina que revoga as de sessão vencida e
+     * apaga as que já não valem, agendada aqui. Cron vazio = desligada, com
+     * aviso no log a cada boot (a chave de sessão vencida continua recusada
+     * na autenticação; só não é apagada).
+     */
+    private function registerSessionApiKeys(): void
+    {
+        $this->app['events']->listen(SessionsEnded::class, static function (SessionsEnded $event): void {
+            app(SessionApiKeys::class)->revokeEnded($event);
+        });
+
+        $cron = trim((string) config('api_keys.session_keys.prune_schedule', ''));
+
+        if ($cron === '' || in_array(strtolower($cron), ['false', 'off', '0'], true)) {
+            Log::warning('api_keys.session_keys.prune_schedule vazio: a rotina agendada das chaves de API de sessão (api-keys:prune-session-keys) está DESLIGADA. A chave de sessão vencida continua recusada na autenticação, mas não é revogada (sem o evento SessionApiKeysRevoked) nem apagada; rode o comando à mão.');
+
+            return;
+        }
+
+        $this->callAfterResolving(Schedule::class, static function (Schedule $schedule) use ($cron): void {
+            $schedule->command('api-keys:prune-session-keys')
+                ->cron($cron)
+                ->withoutOverlapping()
+                ->onOneServer();
         });
     }
 

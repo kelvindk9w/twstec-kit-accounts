@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace Twstec\Kit\Accounts\ApiKeys\Services;
 
 use Carbon\CarbonInterface;
+use Illuminate\Contracts\Session\Session;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 use Twstec\Kit\Accounts\Account\Support\AccountAudit;
+use Twstec\Kit\Accounts\ApiKeys\Confirmation\ApiKeyCreationConfirmed;
 use Twstec\Kit\Accounts\ApiKeys\Enums\ApiKeyAttempt;
 use Twstec\Kit\Accounts\ApiKeys\Enums\ApiKeyStatus;
 use Twstec\Kit\Accounts\ApiKeys\Exceptions\ApiKeyPrivilegeExceededException;
@@ -18,6 +20,7 @@ use Twstec\Kit\Accounts\ApiKeys\Support\ApiKeyHasher;
 use Twstec\Kit\Accounts\Tenancy\Models\Project;
 use Twstec\Kit\Accounts\Tenancy\TenantContext;
 use Twstec\Kit\Auth\Contracts\AuthUser;
+use Twstec\Kit\Auth\Sessions\SessionBinding;
 use Twstec\Kit\Foundation\Audit\Enums\AuditContext;
 use Twstec\Kit\Foundation\Identifiers\UuidColumn;
 
@@ -45,6 +48,12 @@ use Twstec\Kit\Foundation\Identifiers\UuidColumn;
  *   tentativa na trilha (`api_key.privilege_exceeded`, contexto `api`). A
  *   regra mora AQUI, não no controller: todo caminho pela API passa por ela.
  *   Pela sessão (o painel), quem decide é o papel da pessoa na conta.
+ * - CHAVE DE SESSÃO (createForSession): presa à sessão web de quem cria,
+ *   morre quando ela termina (ApiKeys\Sessions\SessionApiKeys). Não escapa
+ *   da sessão: a chave criada pela API com uma chave de sessão nasce presa à
+ *   mesma sessão, a rotação de uma chave de sessão continua presa a ela, e
+ *   uma chave de sessão não rotaciona chave comum (a secreta nova duraria
+ *   mais que a sessão — recusa `api_key_expiry_exceeded`).
  */
 final class ApiKeyService
 {
@@ -62,7 +71,53 @@ final class ApiKeyService
      */
     public function create(AuthUser $creator, array $data): array
     {
+        return $this->createKey($creator, $data, null);
+    }
+
+    /**
+     * Cria uma chave de SESSÃO: presa à sessão web de `$creator`, fora da
+     * lista de chaves e das contagens, revogada na hora quando a sessão
+     * termina (logout, outros aparelhos, troca ou redefinição de senha,
+     * bloqueio da conta) e quando a sessão vence por inatividade; apagada pela
+     * rotina agendada depois de revogada ou vencida. Escopos, projetos,
+     * validade (`expires_at`, recomendada) e trilha valem como em qualquer
+     * chave.
+     *
+     * A criação segue a confirmação do ambiente das chaves: a prova vem de
+     * ApiKeyCreationConfirmation::confirm() e vale para UMA criação.
+     *
+     * @param  array{name: string, scopes?: list<string>|null, expires_at?: string|null, project_uuids?: list<string>|null}  $data
+     * @return array{api_key: ApiKey, secret_key: string}
+     *
+     * @throws InvalidArgumentException A sessão não é de `$creator`.
+     * @throws \LogicException A confirmação já foi usada ou é de outra pessoa.
+     */
+    public function createForSession(AuthUser $creator, Session $session, array $data, ApiKeyCreationConfirmed $confirmation): array
+    {
+        if (! SessionBinding::belongsTo($session, $creator)) {
+            throw new InvalidArgumentException('A sessão informada não é de quem cria a chave.');
+        }
+
+        $confirmation->consumeFor($creator);
+
+        return $this->createKey($creator, $data, SessionBinding::for($session, $creator));
+    }
+
+    /**
+     * @param  array{name: string, scopes?: list<string>|null, expires_at?: string|null, project_uuids?: list<string>|null}  $data
+     * @return array{api_key: ApiKey, secret_key: string}
+     */
+    private function createKey(AuthUser $creator, array $data, ?string $sessionBinding): array
+    {
         $grantor = $this->grantor();
+        $sessionSeenAt = $sessionBinding !== null ? now() : null;
+
+        // Chave de sessão que cria chave pela API: a nova fica presa à mesma
+        // sessão (e morre com ela) — nunca uma chave comum, que duraria mais.
+        if ($grantor !== null && $grantor->isSessionBound()) {
+            $sessionBinding = $grantor->session_binding;
+            $sessionSeenAt = $grantor->session_seen_at ?? now();
+        }
 
         // Pela API, o padrão é o que a chave autenticada já pode; no painel,
         // o padrão da configuração.
@@ -93,7 +148,7 @@ final class ApiKeyService
         $pair = $this->generator->generatePair();
 
         /** @var ApiKey $apiKey */
-        $apiKey = DB::transaction(function () use ($creator, $data, $pair, $scopes, $projectIds, $grantor): ApiKey {
+        $apiKey = DB::transaction(function () use ($creator, $data, $pair, $scopes, $projectIds, $grantor, $sessionBinding, $sessionSeenAt): ApiKey {
             /** @var ApiKey $apiKey */
             $apiKey = ApiKey::createWithPublicCodeRetry([
                 'created_by' => $creator->getKey(),
@@ -102,6 +157,8 @@ final class ApiKeyService
                 // SOMENTE o hash — nunca a sk_ em claro.
                 'secret_hash' => $this->hasher->hash($pair['secret_key']),
                 'scopes' => $scopes,
+                'session_binding' => $sessionBinding,
+                'session_seen_at' => $sessionSeenAt,
                 'expires_at' => $data['expires_at'] ?? null,
                 'status' => ApiKeyStatus::Active,
             ]);
@@ -147,6 +204,12 @@ final class ApiKeyService
             if ($deadline !== null) {
                 $this->assertExpiryWithin($deadline, $current->expires_at);
             }
+
+            // Chave de sessão não rotaciona chave comum: a secreta nova
+            // sobreviveria ao fim da sessão.
+            if ($grantor->isSessionBound() && ! $current->isSessionBound()) {
+                $this->refuse(ApiKeyPrivilegeExceededException::expiry());
+            }
         }
 
         $pair = $this->generator->generatePair();
@@ -165,6 +228,9 @@ final class ApiKeyService
                 // Herda a RESTRIÇÃO, não só a lista: a chave restrita cujos
                 // projetos foram todos excluídos continua sem acesso algum.
                 'restricted_to_projects' => $current->isRestrictedToProjects(),
+                // Chave de sessão rotacionada continua presa à mesma sessão.
+                'session_binding' => $current->session_binding,
+                'session_seen_at' => $current->session_seen_at,
                 'expires_at' => $current->expires_at,
                 'rotated_from_id' => $current->id,
                 'status' => ApiKeyStatus::Active,

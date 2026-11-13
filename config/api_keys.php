@@ -81,6 +81,49 @@ return [
         'max_grace_minutes' => (int) env('API_KEYS_MAX_GRACE_MINUTES', 10080),
     ],
 
+    // --- Validade escolhida na criação (telas do painel) ----------------------
+    // Na tela de criar chave a pessoa escolhe: sem validade, N horas ou N dias
+    // (ApiKeys\Support\ApiKeyExpiry). Estes são os tetos de cada unidade. A
+    // API v1 continua recebendo `expires_at` (data); o sistema nunca impõe
+    // prazo — "sem validade" segue sendo uma escolha.
+    'expiry' => [
+        'max_hours' => (int) env('API_KEYS_EXPIRY_MAX_HOURS', 720),
+        'max_days' => (int) env('API_KEYS_EXPIRY_MAX_DAYS', 3650),
+    ],
+
+    // --- Confirmação da criação de chave, por ambiente das chaves ------------
+    // Quem cria chave pelo painel (e a chave de sessão do aplicativo) confirma
+    // antes (ApiKeys\Confirmation\ApiKeyCreationConfirmation), pela política
+    // do ambiente de `environment`:
+    // - 'transaction_password_and_code': senha de transação + código por
+    //   e-mail (a ação sensível de sempre);
+    // - 'code': só o código por e-mail (família própria — o código nunca vira
+    //   token de ação sensível para outra operação).
+    // `live` aceita SÓ 'transaction_password_and_code': outro valor impede a
+    // inicialização (produção nunca afrouxa). Ambiente sem política aqui usa
+    // a mais forte. A rotação e as rotas da API v1 (`sensitive.token`)
+    // continuam pedindo a ação sensível completa em qualquer ambiente.
+    'creation_confirmation' => [
+        'live' => 'transaction_password_and_code',
+        'test' => (string) env('API_KEYS_TEST_CREATION_CONFIRMATION', 'code'),
+    ],
+
+    // --- Chaves de API de SESSÃO -----------------------------------------------
+    // Chave presa a uma sessão web (ApiKeyService::createForSession): fora da
+    // lista e das contagens, revogada na hora quando a sessão termina (logout,
+    // outros aparelhos, troca de senha, bloqueio) e, quando a sessão vence por
+    // inatividade (SESSION_LIFETIME), recusada na hora e revogada pela rotina.
+    'session_keys' => [
+        // Intervalo mínimo entre duas marcações de "sessão vista" no banco
+        // (uma escrita por sessão a cada N segundos, no grupo `web`).
+        'touch_throttle_seconds' => (int) env('API_KEYS_SESSION_TOUCH_SECONDS', 60),
+
+        // Rotina `api-keys:prune-session-keys`, agendada pelo pacote: revoga
+        // as de sessão vencida e APAGA as de sessão revogadas ou vencidas.
+        // Vazio desliga (com aviso no log a cada boot).
+        'prune_schedule' => (string) env('API_KEYS_SESSION_KEYS_PRUNE_SCHEDULE', '*/10 * * * *'),
+    ],
+
     // Paginação das listagens da API v1.
     'pagination' => [
         'per_page' => (int) env('API_KEYS_PER_PAGE', 15),
