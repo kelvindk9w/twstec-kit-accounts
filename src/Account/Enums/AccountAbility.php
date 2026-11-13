@@ -33,6 +33,12 @@ enum AccountAbility: string
     /** Renomear a conta (a conta pessoal não tem nome próprio). */
     case UpdateAccount = 'account.update';
 
+    /**
+     * Baixar os limites da API da conta (nunca acima do que a plataforma dá
+     * — Tenancy\Limits\ApiLimits).
+     */
+    case ReduceApiLimits = 'api-limits.reduce';
+
     case TransferOwnership = 'account.transfer';
 
     case DeleteAccount = 'account.delete';

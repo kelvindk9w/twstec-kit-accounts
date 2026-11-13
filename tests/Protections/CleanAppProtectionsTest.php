@@ -11,9 +11,12 @@ use Twstec\Kit\Accounts\AccountsServiceProvider;
 use Twstec\Kit\Accounts\ApiKeys\Enums\ApiKeyStatus;
 use Twstec\Kit\Accounts\ApiKeys\Services\ApiKeyService;
 use Twstec\Kit\Accounts\ApiKeys\Support\ApiKeyHasher;
+use Twstec\Kit\Accounts\Tenancy\Middleware\EnforceAccountApiLimits;
+use Twstec\Kit\Accounts\Tenancy\Middleware\LimitApiRoute;
 use Twstec\Kit\Accounts\Tenancy\Middleware\ResolveTenant;
 use Twstec\Kit\Accounts\Tenancy\Services\ProjectService;
 use Twstec\Kit\Auth\Enums\UserStatus;
+use Twstec\Kit\Foundation\Idempotency\Middleware\HandleIdempotencyKey;
 
 // =============================================================================
 // AS PROTEÇÕES DA API VÊM DO PACOTE — numa aplicação Laravel limpa (Testbench),
@@ -257,7 +260,13 @@ it('instala no kernel: throttle:api na frente do grupo api, a autenticação ant
     expect($api[0])->toBe(AccountsServiceProvider::API_GROUP_THROTTLE)
         ->and(array_count_values($api)[AccountsServiceProvider::API_GROUP_THROTTLE])->toBe(1)
         ->and(array_search(ResolveTenant::class, $priority, true))
-        ->toBe(array_search(ThrottleRequests::class, $priority, true) - 1);
+        ->toBe(array_search(ThrottleRequests::class, $priority, true) - 1)
+        // Limites por conta: no grupo, uma vez, contados depois da
+        // autenticação e antes da idempotência (o replay conta).
+        ->and(array_count_values($api)[EnforceAccountApiLimits::class])->toBe(1)
+        ->and(array_search(EnforceAccountApiLimits::class, $priority, true))->toBeGreaterThan(array_search(ResolveTenant::class, $priority, true))
+        ->and(array_search(LimitApiRoute::class, $priority, true))->toBeGreaterThan(array_search(EnforceAccountApiLimits::class, $priority, true))
+        ->and(array_search(HandleIdempotencyKey::class, $priority, true))->toBeGreaterThan(array_search(LimitApiRoute::class, $priority, true));
 
     foreach (AccountsServiceProvider::MIDDLEWARE_ALIASES as $alias => $middleware) {
         expect($aliases[$alias])->toBe($middleware);

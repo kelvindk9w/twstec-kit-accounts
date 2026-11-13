@@ -7,9 +7,14 @@ namespace Twstec\Kit\Accounts\Tenancy\Services;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 use Twstec\Kit\Accounts\ApiKeys\Models\ApiKey;
+use Twstec\Kit\Accounts\Deletion\DeletionImpediments;
+use Twstec\Kit\Accounts\Tenancy\Deletion\ProjectDeletionImpediments;
+use Twstec\Kit\Accounts\Tenancy\Exceptions\ProjectDeletionRefusedException;
 use Twstec\Kit\Accounts\Tenancy\Models\Project;
 use Twstec\Kit\Auth\Contracts\AuthUser;
 
@@ -124,14 +129,41 @@ final class ProjectService
     /**
      * Exclui um projeto já achado por um dos recortes.
      *
+     * Antes, as regras do aplicativo que impedem a exclusão
+     * (Deletion\ProjectDeletionImpediments, `accounts.projects.deletion_checks`):
+     * havendo impedimento, nada sai e a recusa sobe com o motivo (409
+     * `project_deletion_refused`). Depois, a REDE DE SEGURANÇA: a exclusão roda
+     * num savepoint e, se o banco recusar por chave estrangeira (registro do
+     * aplicativo que aponta para o projeto e que nenhuma regra declarou), a
+     * recusa é a mesma exceção, com o código genérico `conflict` — nunca o erro
+     * bruto do banco (500). A transação de quem chamou continua utilizável.
+     *
      * O vínculo N:N com as chaves cai junto (cascadeOnDelete na pivot). A
      * chave que só atendia este projeto CONTINUA restrita — agora a nenhum
      * projeto (fail-closed); voltar à conta toda é ação explícita de quem
      * gerencia as chaves.
+     *
+     * @throws ProjectDeletionRefusedException Uma regra impediu, ou o banco recusou por chave estrangeira.
      */
     public function delete(Project $project): void
     {
-        $project->delete();
+        app(ProjectDeletionImpediments::class)->ensureNone($project);
+
+        try {
+            $project->getConnection()->transaction(fn () => $project->delete());
+        } catch (QueryException $exception) {
+            if (! DeletionImpediments::isForeignKeyViolation($exception)) {
+                throw $exception;
+            }
+
+            // Sem a mensagem do banco (ela traz valores de chave): só o código.
+            Log::warning('accounts.projects.deletion.undeclared_reference', [
+                'sqlstate' => $exception->errorInfo[0] ?? null,
+                'project_uuid' => (string) $project->uuid,
+            ]);
+
+            throw ProjectDeletionRefusedException::referenced();
+        }
     }
 
     /**

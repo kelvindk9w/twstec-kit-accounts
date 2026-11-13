@@ -103,4 +103,13 @@ return [
             'password' => 'password',
         ],
     ],
+
+    'api_limits' => [
+        'quota' => 'Requests per window',
+        'burst_per_minute' => 'Requests per minute',
+        'concurrency' => 'Simultaneous requests',
+        'above_platform' => 'The maximum for this account is :max.',
+        'invalid' => 'Enter a whole number from 1, or leave it blank to use the maximum.',
+    ],
+
 ];

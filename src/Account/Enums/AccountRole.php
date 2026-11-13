@@ -37,6 +37,7 @@ enum AccountRole: string
             AccountAbility::ManageApiKeys,
             AccountAbility::ManageMembers,
             AccountAbility::UpdateAccount => $this !== self::Member,
+            AccountAbility::ReduceApiLimits,
             AccountAbility::TransferOwnership,
             AccountAbility::DeleteAccount => $this === self::Owner,
         };

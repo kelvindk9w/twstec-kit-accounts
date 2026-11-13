@@ -71,6 +71,8 @@ it('roda as migrations com os mesmos nomes de arquivo que tinham no aplicativo',
         '2026_09_27_000001_create_account_invitations_table.php',
         // Chaves de API de sessão (2.3).
         '2026_11_14_000001_add_session_binding_to_api_keys_table.php',
+        // Limites da API por conta (2.4).
+        '2026_11_15_000001_add_api_limits_to_accounts_table.php',
     ])->and(app('migrator')->paths())->toContain(dirname(__DIR__, 2).'/database/migrations')
         ->and(Schema::hasTable('projects'))->toBeTrue()
         ->and(Schema::hasTable('api_key_project'))->toBeTrue()
@@ -80,7 +82,8 @@ it('roda as migrations com os mesmos nomes de arquivo que tinham no aplicativo',
         ->and(Schema::hasColumn('projects', 'account_id'))->toBeTrue()
         ->and(Schema::hasColumn('api_keys', 'account_id'))->toBeTrue()
         ->and(Schema::hasTable('account_invitations'))->toBeTrue()
-        ->and(Schema::hasColumns('api_keys', ['session_binding', 'session_seen_at']))->toBeTrue();
+        ->and(Schema::hasColumns('api_keys', ['session_binding', 'session_seen_at']))->toBeTrue()
+        ->and(Schema::hasColumns('accounts', ['api_quota', 'api_burst_per_minute', 'api_concurrency', 'api_quota_own', 'api_burst_per_minute_own', 'api_concurrency_own']))->toBeTrue();
 });
 
 it('registra o contexto do tenant (um por aplicação) e quem o limite da API conta', function (): void {

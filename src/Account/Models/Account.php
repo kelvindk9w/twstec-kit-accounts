@@ -43,6 +43,12 @@ use Twstec\Kit\Foundation\Identifiers\RoutesByUuid;
  * @property string $codigo_publico
  * @property string|null $name
  * @property int|null $personal_user_id
+ * @property int|null $api_quota
+ * @property int|null $api_burst_per_minute
+ * @property int|null $api_concurrency
+ * @property int|null $api_quota_own
+ * @property int|null $api_burst_per_minute_own
+ * @property int|null $api_concurrency_own
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
@@ -65,6 +71,25 @@ class Account extends Model
         static::deleting(static function (self $account): void {
             app(AccountDeletion::class)->guardDirectDeletion($account);
         });
+    }
+
+    /**
+     * Limites da API da conta (Tenancy\Limits\ApiLimits): o valor da
+     * plataforma e a redução do dono. Nunca por atribuição em massa — só
+     * pelo ApiLimits, que aplica a regra de quem pode o quê.
+     *
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'api_quota' => 'integer',
+            'api_burst_per_minute' => 'integer',
+            'api_concurrency' => 'integer',
+            'api_quota_own' => 'integer',
+            'api_burst_per_minute_own' => 'integer',
+            'api_concurrency_own' => 'integer',
+        ];
     }
 
     /**

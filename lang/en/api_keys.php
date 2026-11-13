@@ -35,6 +35,7 @@ return [
         'created' => 'Project created successfully.',
         'updated' => 'Project updated successfully.',
         'deleted' => 'Project removed successfully.',
+        'deletion_referenced' => 'This project cannot be deleted: there are records that still depend on it. Nothing was deleted.',
         'invalid' => 'One or more of the given projects do not exist in your account.',
         'account_key_required' => 'This key is linked to projects and only acts on them. Use an unlinked (whole account) key to create projects and manage keys.',
         'exceeded' => 'The authenticated API key is restricted to projects: the key being created or changed must stay within those projects.',

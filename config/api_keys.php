@@ -169,4 +169,42 @@ return [
         ],
     ],
 
+    // --- Limites da API POR CONTA -------------------------------------------------
+    // Contados pela CONTA dona da chave (todas as chaves da conta somam), no
+    // store do RateLimiter (`cache.limiter`, Redis em produção), com operação
+    // atômica — vale com vários workers e servidores. Toda requisição
+    // autenticada conta, inclusive o replay idempotente e a que acaba
+    // recusada por outro motivo. Ver docs/api.md ("Limites por conta").
+    //
+    // Os valores abaixo são o PADRÃO DA PLATAFORMA. O /admin pode subir ou
+    // baixar por conta (fica na trilha); o dono da conta só pode baixar,
+    // nunca acima do que a plataforma dá. O que vale é o menor dos dois.
+    //
+    // Desligado por padrão (o que já existia continua igual); o
+    // `throttle:api` por chave (RATE_LIMIT_API) segue valendo à parte.
+    'limits' => [
+        'enabled' => (bool) env('API_LIMITS_ENABLED', false),
+
+        // COTA: requisições por janela. A janela começa na PRIMEIRA
+        // requisição da conta e dura `window_minutes` (12 h = 720); ao fim,
+        // a contagem recomeça do zero na próxima requisição.
+        'quota' => (int) env('API_LIMITS_QUOTA', 25000),
+        'window_minutes' => (int) env('API_LIMITS_WINDOW_MINUTES', 720),
+
+        // RAJADA: teto por minuto da conta, alto, contra o pico que gastaria
+        // a cota inteira em segundos.
+        'burst_per_minute' => (int) env('API_LIMITS_BURST_PER_MINUTE', 1000),
+
+        // CONCORRÊNCIA: requisições da conta EM ANDAMENTO ao mesmo tempo. A
+        // vaga é devolvida no fim da requisição, também quando ela falha; a
+        // vaga de um processo que morreu no meio vence sozinha depois de
+        // `lease_seconds` (mantenha acima do tempo máximo de uma requisição).
+        'concurrency' => (int) env('API_LIMITS_CONCURRENCY', 50),
+        'lease_seconds' => (int) env('API_LIMITS_CONCURRENCY_LEASE_SECONDS', 300),
+
+        // Retry-After da recusa por concorrência (não há hora certa para
+        // uma vaga abrir).
+        'concurrency_retry_after_seconds' => (int) env('API_LIMITS_CONCURRENCY_RETRY_AFTER_SECONDS', 1),
+    ],
+
 ];

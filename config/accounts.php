@@ -69,6 +69,18 @@ return [
         'checks' => [],
     ],
 
+    'projects' => [
+        // REGRAS QUE IMPEDEM A EXCLUSÃO DE UM PROJETO, declaradas pelo
+        // aplicativo: classes que implementam
+        // Twstec\Kit\Accounts\Tenancy\Contracts\ProjectDeletionCheck,
+        // perguntadas pelo ProjectService::delete() (a API v1 e as telas)
+        // ANTES de o projeto sair. Havendo um impedimento, nada sai: a API
+        // responde 409 `project_deletion_refused` com o motivo, e as telas
+        // mostram o motivo. Ex.: projeto com cobranças ou pedidos. Também dá
+        // para registrar em código (ProjectDeletionImpediments::register).
+        'deletion_checks' => [],
+    ],
+
     'migration' => [
         // Tamanho do lote da migração 1.x → contas (pessoas por lote e
         // faixa de ids por UPDATE de projetos/chaves).

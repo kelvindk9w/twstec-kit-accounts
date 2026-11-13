@@ -14,6 +14,7 @@ use Twstec\Kit\Accounts\Accounts;
 use Twstec\Kit\Accounts\ApiKeys\Enums\ApiKeyAttempt;
 use Twstec\Kit\Accounts\ApiKeys\Models\ApiKey;
 use Twstec\Kit\Accounts\Tenancy\Enums\ProjectAttempt;
+use Twstec\Kit\Accounts\Tenancy\Exceptions\ProjectDeletionRefusedException;
 use Twstec\Kit\Accounts\Tenancy\Models\Project;
 use Twstec\Kit\Foundation\Audit\AuditTrail;
 use Twstec\Kit\Foundation\Identifiers\UuidColumn;
@@ -33,6 +34,8 @@ use Twstec\Kit\Foundation\Identifiers\UuidColumn;
  *   idêntico nos dois casos, e não revela que o recurso existe.
  * - foreignProjects(): o vínculo pediu projeto que não está na conta atual →
  *   `denied`; quem chama devolve o erro de validação de sempre.
+ * - projectDeletionRefused(): uma regra do aplicativo (ou o banco) recusou a
+ *   exclusão do projeto → `denied` com o motivo; quem chama mostra o motivo.
  *
  * A API v1 (por chave) não passa por aqui: as recusas de escopo e de chave
  * vinculada ficam nos middlewares (EnsureApiKeyScope, EnsureAccountWideApiKey),
@@ -92,6 +95,16 @@ final class AccountResourceGuard
     public function foreignProjects(ApiKeyAttempt $attempt, ?string $apiKeyUuid = null): void
     {
         $this->deny($attempt, __('api_keys.projects.invalid'), $apiKeyUuid);
+    }
+
+    /**
+     * A exclusão do projeto foi recusada (ProjectService::delete()): grava a
+     * tentativa com o motivo que a pessoa leu. A mensagem na tela é de quem
+     * chama.
+     */
+    public function projectDeletionRefused(Project $project, ProjectDeletionRefusedException $refused): void
+    {
+        $this->deny(ProjectAttempt::Deleted, $refused->getMessage(), (string) $project->uuid);
     }
 
     /**

@@ -42,6 +42,11 @@ use Twstec\Kit\Accounts\ApiKeys\Support\ApiKeyGenerator;
 use Twstec\Kit\Accounts\ApiKeys\Support\PepperWarnings;
 use Twstec\Kit\Accounts\Deletion\AccountDeletion;
 use Twstec\Kit\Accounts\Deletion\DeletionImpediments;
+use Twstec\Kit\Accounts\Tenancy\Deletion\ProjectDeletionImpediments;
+use Twstec\Kit\Accounts\Tenancy\Limits\ApiLimitCounter;
+use Twstec\Kit\Accounts\Tenancy\Limits\ApiLimits;
+use Twstec\Kit\Accounts\Tenancy\Middleware\EnforceAccountApiLimits;
+use Twstec\Kit\Accounts\Tenancy\Middleware\LimitApiRoute;
 use Twstec\Kit\Accounts\Tenancy\Middleware\ResolveTenant;
 use Twstec\Kit\Accounts\Tenancy\Support\TenantIdempotencyScope;
 use Twstec\Kit\Accounts\Tenancy\Support\TenantRateLimitSubject;
@@ -132,6 +137,11 @@ final class AccountsServiceProvider extends ServiceProvider
         // Operação de conta (gerenciar chaves, criar projeto): recusa a
         // chave vinculada a projetos.
         'account.key' => EnsureAccountWideApiKey::class,
+        // Limites da API por conta (cota, rajada, concorrência) — já no
+        // grupo `api`; o alias serve a quem monta a pilha à mão.
+        EnforceAccountApiLimits::ALIAS => EnforceAccountApiLimits::class,
+        // Limite próprio de uma rota, por conta: 'api.route-limit:30,60'.
+        LimitApiRoute::ALIAS => LimitApiRoute::class,
     ];
 
     /**
@@ -182,6 +192,7 @@ final class AccountsServiceProvider extends ServiceProvider
         // Impedimentos de exclusão (ponto de extensão do aplicativo e dos
         // outros pacotes): um registro por processo.
         $this->app->singleton(DeletionImpediments::class);
+        $this->app->singleton(ProjectDeletionImpediments::class);
 
         // O caminho único de exclusão de pessoa e de conta: guarda, entre a
         // pergunta e o `delete()`, quais contas podem sair agora.
@@ -192,6 +203,8 @@ final class AccountsServiceProvider extends ServiceProvider
         // resetar entre requisições (senão o tenant vaza de uma requisição
         // para a outra).
         $this->app->singleton(TenantContext::class);
+        $this->app->singleton(ApiLimits::class);
+        $this->app->singleton(ApiLimitCounter::class);
 
         // Quem o limite da API conta numa requisição autenticada: Segurança
         // (foundation) define o contrato, este pacote diz quem é o cliente (a
@@ -379,6 +392,16 @@ final class AccountsServiceProvider extends ServiceProvider
             // ficar antes: o próprio ResolveTenant limita as falhas por chave
             // e por IP (Twstec\Kit\Foundation\Security\ApiRateLimit).
             $kernel->addToMiddlewarePriorityBefore(ThrottleRequests::class, ResolveTenant::class);
+
+            // Limites da API POR CONTA (Tenancy\Limits\ApiLimits) em toda
+            // rota do grupo `api` — sem efeito com API_LIMITS_ENABLED=false
+            // ou sem conta resolvida. Contam pela CONTA, então rodam depois
+            // do `resolve.tenant` (logo após o limite por chave; o limite
+            // próprio da rota, depois deles); a idempotência vem bem depois,
+            // e o replay conta.
+            $kernel->appendMiddlewareToGroup('api', EnforceAccountApiLimits::class);
+            $kernel->addToMiddlewarePriorityAfter(ThrottleRequests::class, EnforceAccountApiLimits::class);
+            $kernel->addToMiddlewarePriorityAfter(EnforceAccountApiLimits::class, LimitApiRoute::class);
 
             $kernel->setMiddlewareAliases([...self::MIDDLEWARE_ALIASES, ...$kernel->getMiddlewareAliases()]);
         });

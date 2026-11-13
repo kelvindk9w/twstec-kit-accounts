@@ -127,6 +127,15 @@ Nenhuma proteção depende de o aplicativo lembrar de chamar algo:
   mesma recusa limpa, com a transação desfeita — nunca o erro bruto do banco
   (`DeletionImpediments::guardIntegrity`). Ver
   [docs/tenancy.md](https://github.com/kelvindk9w/tws-laravel-starter-kit/blob/desenvolvimento/docs/tenancy.md#impedimentos-de-exclusão).
+- **Regras que impedem a exclusão de um projeto** (2.4,
+  `Tenancy\Deletion\ProjectDeletionImpediments`): regras do aplicativo
+  (`Tenancy\Contracts\ProjectDeletionCheck`) em
+  `accounts.projects.deletion_checks` ou registradas em código, perguntadas
+  pelo `ProjectService::delete()` antes de o projeto sair. Recusa:
+  `Tenancy\Exceptions\ProjectDeletionRefusedException` (409 — na API,
+  `project_deletion_refused` com o motivo; chave estrangeira que ninguém
+  declarou, `conflict` genérico, nunca 500). Ver
+  [docs/tenancy.md](https://github.com/kelvindk9w/tws-laravel-starter-kit/blob/desenvolvimento/docs/tenancy.md#impedir-a-exclusão-de-um-projeto).
 - **Caminho único de exclusão** (`Deletion\AccountDeletion`): pessoa e conta
   se excluem por ele — as telas dos starters, o `/admin` e a aprovação em dois
   passos usam, e o código do aplicativo (job, comando, serviço) deve usar:
@@ -161,6 +170,13 @@ Nenhuma proteção depende de o aplicativo lembrar de chamar algo:
 - **Limite de falhas de autenticação** por chave pública + IP e um teto por
   IP, dentro do próprio `ResolveTenant` (`ApiRateLimit`, do foundation), antes
   de qualquer consulta.
+- **Limites por conta** (2.4, desligados por padrão — `API_LIMITS_ENABLED`):
+  cota por janela, rajada por minuto e concorrência, somando as chaves da
+  conta, no Redis (`api.limits` no grupo `api`), com `RateLimit-*` e os 429
+  próprios; limite opcional por rota (`api.route-limit:<máx>,<seg>`). O
+  `/admin` muda por conta, o dono só baixa (`Account\Actions\ChangeApiLimits`).
+  Ver
+  [docs/api.md](https://github.com/kelvindk9w/tws-laravel-starter-kit/blob/desenvolvimento/docs/api.md#limites-por-conta-cota-rajada-concorrência).
 - **Escopo da idempotência:** o `TenantIdempotencyScope` registrado como
   `IdempotencyScopeResolver` (um resolvedor do aplicativo vence). Ver
   [docs/api.md](https://github.com/kelvindk9w/tws-laravel-starter-kit/blob/desenvolvimento/docs/api.md#idempotência-idempotency-key).

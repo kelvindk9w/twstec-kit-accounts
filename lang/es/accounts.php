@@ -103,4 +103,13 @@ return [
             'password' => 'contraseña',
         ],
     ],
+
+    'api_limits' => [
+        'quota' => 'Solicitudes por ventana',
+        'burst_per_minute' => 'Solicitudes por minuto',
+        'concurrency' => 'Solicitudes simultáneas',
+        'above_platform' => 'El máximo para esta cuenta es :max.',
+        'invalid' => 'Indique un número entero a partir de 1, o déjelo en blanco para usar el máximo.',
+    ],
+
 ];

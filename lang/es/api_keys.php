@@ -34,6 +34,7 @@ return [
         'created' => 'Proyecto creado con éxito.',
         'updated' => 'Proyecto actualizado con éxito.',
         'deleted' => 'Proyecto eliminado con éxito.',
+        'deletion_referenced' => 'No es posible eliminar este proyecto: hay registros que todavía dependen de él. No se eliminó nada.',
         'invalid' => 'Uno o más proyectos informados no existen en tu cuenta.',
         'account_key_required' => 'Esta clave está vinculada a proyectos y solo actúa sobre ellos. Usa una clave sin vínculo (toda la cuenta) para crear proyectos y gestionar claves.',
         'exceeded' => 'La clave de API autenticada está restringida a proyectos: la clave creada o modificada debe quedarse dentro de esos proyectos.',

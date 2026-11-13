@@ -17,6 +17,7 @@ enum AccountAuditEvent: string
     case Renamed = 'account.renamed';
     case Deleted = 'account.deleted';
     case Switched = 'account.switched';
+    case ApiLimitsChanged = 'account.api_limits_changed';
 
     case InvitationCreated = 'account.invitation_created';
     case InvitationResent = 'account.invitation_resent';
