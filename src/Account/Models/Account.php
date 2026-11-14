@@ -17,6 +17,7 @@ use Twstec\Kit\Accounts\ApiKeys\Models\ApiKey;
 use Twstec\Kit\Accounts\Deletion\AccountDeletion;
 use Twstec\Kit\Accounts\Tenancy\Models\Project;
 use Twstec\Kit\Auth\Contracts\AuthUser;
+use Twstec\Kit\Auth\Support\EmailVerification;
 use Twstec\Kit\Auth\Support\UserModel;
 use Twstec\Kit\Foundation\Identifiers\HasPublicCode;
 use Twstec\Kit\Foundation\Identifiers\RoutesByUuid;
@@ -156,6 +157,28 @@ class Account extends Model
     public function apiKeys(): HasMany
     {
         return $this->hasMany(ApiKey::class);
+    }
+
+    /**
+     * A conta opera? É a REGRA ÚNICA do kit: a conta responde pelo dono, e
+     * só opera se o dono existe, é uma pessoa do kit (AuthUser), está ativa
+     * (`isActive()`) e não tem a confirmação de e-mail pendente
+     * (`EmailVerification::pendingFor()`, que respeita a exigência
+     * configurada: com ela desligada, o e-mail não confirmado não barra).
+     *
+     * A API usa esta regra (ResolveTenant) e qualquer aplicativo que precise
+     * saber se a conta opera (cobrar, emitir, aceitar chamadas...) deve
+     * chamá-la em vez de repetir a expressão: assim a regra não se separa do
+     * kit quando ele mudar. Lê o dono pela relação `owner` (uma consulta,
+     * guardada no model).
+     */
+    public function isOperational(): bool
+    {
+        $owner = $this->owner;
+
+        return $owner instanceof AuthUser
+            && $owner->isActive()
+            && ! EmailVerification::pendingFor($owner);
     }
 
     public function isPersonal(): bool

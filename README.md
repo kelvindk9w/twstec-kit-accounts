@@ -34,7 +34,7 @@ telas dos starters (React e Livewire) as usam; outro front reaproveita as Action
 | Peça | O que faz |
 | --- | --- |
 | `Accounts` | A porta de entrada: `current()`, `asSystem('motivo', fn)`, `systemModeForRequest('motivo')` (middleware de área), `actingAs($conta, fn)`, `can()`/`authorize()` pelo papel, `switchTo($conta)` (seleção na sessão) |
-| `Account\Models` | `Account` (conta; `owner`, `members`, `roleOf()`, conta pessoal) e `AccountMembership` (pessoa × conta, com a regra do dono no código) |
+| `Account\Models` | `Account` (conta; `owner`, `members`, `roleOf()`, `isOperational()` — a regra única "a conta opera", conta pessoal) e `AccountMembership` (pessoa × conta, com a regra do dono no código) |
 | `Account\Enums` | `AccountRole` (papéis fixos e a matriz `allows()`) e `AccountAbility` (as ações, também no Gate como `accounts.*`) |
 | `Account\Concerns\BelongsToAccount` + `Account\Scopes\AccountScope` | O isolamento: escopo global da conta atual (exceção sem conta), gravação só na conta atual, `created_by`; registro sem conta só num model que declare a exceção (`allowsRecordWithoutAccount()` — hoje só a foto pessoal dos uploads) e só em modo sistema |
 | `Account\CurrentAccount` | A conta atual: quadro explícito (API, `actingAs`, modo sistema), modo sistema da requisição, sessão web (seleção ou conta pessoal); e o papel de cada conta + pessoa guardado por requisição (`roleFor`), esquecido quando um vínculo muda, no fim da requisição e a cada job |

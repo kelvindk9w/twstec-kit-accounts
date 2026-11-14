@@ -17,7 +17,6 @@ use Twstec\Kit\Accounts\ApiKeys\Support\ApiKeyHasher;
 use Twstec\Kit\Accounts\ApiKeys\Support\PepperMatch;
 use Twstec\Kit\Accounts\Tenancy\TenantContext;
 use Twstec\Kit\Auth\Contracts\AuthUser;
-use Twstec\Kit\Auth\Support\EmailVerification;
 use Twstec\Kit\Foundation\Logging\Models\RequestLog;
 use Twstec\Kit\Foundation\Security\ApiRateLimit;
 
@@ -111,13 +110,15 @@ final class ResolveTenant
         }
 
         $account = $apiKey->account;
-        $owner = $account?->owner;
 
         // A conta responde pelo dono: dono inativo ou sem e-mail confirmado
-        // não opera pela API (mesma regra do painel — EmailVerification). Na
+        // não opera pela API (regra única: Account::isOperational()). Na
         // conta pessoal o dono é a própria pessoa, como na 1.x. Mesma recusa
-        // muda da credencial inválida.
-        if (! $account instanceof Account || ! $owner instanceof AuthUser || ! $owner->isActive() || EmailVerification::pendingFor($owner)) {
+        // muda da credencial inválida. O `instanceof` do dono só estreita o
+        // tipo para o que vem adiante (a regra já o exigiu).
+        $owner = $account instanceof Account && $account->isOperational() ? $account->owner : null;
+
+        if (! $account instanceof Account || ! $owner instanceof AuthUser) {
             $this->deny($request);
         }
 
